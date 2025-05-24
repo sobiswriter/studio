@@ -4,7 +4,7 @@
 import type { Task } from '@/types';
 import { TaskItem } from './TaskItem';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
+// import { ScrollArea } from '@/components/ui/scroll-area'; // Removed ScrollArea
 import { Sun, CheckCircle2 } from 'lucide-react'; // Icons for bounties
 
 interface DailyBountyListProps {
@@ -56,39 +56,37 @@ export function DailyBountyList({
       <CardHeader>
         <CardTitle className="font-pixel flex items-center gap-2 text-amber-700"><Sun size={24} /> Daily Bounties</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[280px] pr-3"> {/* Adjust height as needed */}
-          {activeBounties.length > 0 && (
-            <>
-              {activeBounties.map((bounty) => (
-                <TaskItem
-                  key={bounty.id}
-                  task={bounty}
-                  onToggleComplete={onToggleComplete}
-                  onEditTask={() => {}} // Bounties are not editable
-                  onDeleteTask={() => {}} // Bounties are not deletable
-                  onStartQuest={onStartQuest}
-                />
-              ))}
-            </>
-          )}
-          {completedBounties.length > 0 && (
-            <>
-            {activeBounties.length > 0 && <hr className="my-3 border-amber-400"/>}
-             <h3 className="font-pixel text-sm text-amber-600 my-2 ml-1 flex items-center gap-1"><CheckCircle2 size={16}/>Completed Today</h3>
-              {completedBounties.map((bounty) => (
-                <TaskItem
-                  key={bounty.id}
-                  task={bounty}
-                  onToggleComplete={onToggleComplete}
-                  onEditTask={() => {}}
-                  onDeleteTask={() => {}}
-                  onStartQuest={onStartQuest} // Should be disabled if completed
-                />
-              ))}
-            </>
-          )}
-        </ScrollArea>
+      <CardContent className="space-y-2"> {/* Removed ScrollArea, added space-y-2 for TaskItems */}
+        {activeBounties.length > 0 && (
+          <>
+            {activeBounties.map((bounty) => (
+              <TaskItem
+                key={bounty.id}
+                task={bounty}
+                onToggleComplete={onToggleComplete}
+                onEditTask={() => {}} // Bounties are not editable
+                onDeleteTask={() => {}} // Bounties are not deletable
+                onStartQuest={onStartQuest}
+              />
+            ))}
+          </>
+        )}
+        {completedBounties.length > 0 && (
+          <>
+          {activeBounties.length > 0 && <hr className="my-3 border-amber-400"/>}
+           <h3 className="font-pixel text-sm text-amber-600 my-2 ml-1 flex items-center gap-1"><CheckCircle2 size={16}/>Completed Today</h3>
+            {completedBounties.map((bounty) => (
+              <TaskItem
+                key={bounty.id}
+                task={bounty}
+                onToggleComplete={onToggleComplete}
+                onEditTask={() => {}}
+                onDeleteTask={() => {}}
+                onStartQuest={onStartQuest} // Should be disabled if completed
+              />
+            ))}
+          </>
+        )}
       </CardContent>
     </Card>
   );

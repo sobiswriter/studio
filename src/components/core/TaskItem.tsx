@@ -4,7 +4,7 @@
 import type { Task } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Edit3, Trash2, Clock, CalendarDays, PlayCircle, Star, Award } from 'lucide-react'; // Added Award for bounty credits
+import { Edit3, Trash2, Clock, CalendarDays, PlayCircle, Star, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { XP_PER_TASK, BOUNTY_CREDITS_REWARD, BOUNTY_XP_REWARD } from '@/lib/constants';
@@ -34,7 +34,7 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
         "flex items-center gap-3 p-3 rounded-md border-2 border-foreground bg-card transition-all duration-200 pixel-corners",
         task.isCompleted ? "bg-muted opacity-70" : "hover:shadow-[2px_2px_0px_hsl(var(--foreground))]",
         isHovered && !task.isCompleted ? "shadow-[2px_2px_0px_hsl(var(--foreground))]" : "",
-        task.isBounty && !task.isCompleted && "border-accent shadow-[2px_2px_0px_hsl(var(--accent))]"
+        task.isBounty && !task.isCompleted && "border-amber-500 shadow-[2px_2px_0px_hsl(var(--amber-500))]" // Updated bounty border and shadow
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -53,8 +53,8 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
           className={cn(
             "font-pixel text-base cursor-pointer",
             task.isCompleted && "line-through text-muted-foreground",
-            task.isStarted && !task.isCompleted && "text-accent",
-            task.isBounty && !task.isCompleted && "text-accent-foreground"
+            task.isStarted && !task.isCompleted && "text-primary", // Using primary for active non-bounty quests
+            task.isBounty && !task.isCompleted && "text-amber-700" // Updated bounty text color
           )}
         >
           {task.title} {task.isStarted && !task.isCompleted && "(Active)"}
@@ -64,7 +64,7 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
           {task.duration && (
             <span className="flex items-center gap-1 font-pixel"><Clock size={12} /> {task.duration} min</span>
           )}
-          {task.dueDate && !task.isBounty && ( // Hide due date for bounties as they are daily
+          {task.dueDate && !task.isBounty && ( 
             <span className="flex items-center gap-1 font-pixel"><CalendarDays size={12} /> {task.dueDate}</span>
           )}
           {!task.isCompleted && (
@@ -93,7 +93,7 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
             <PlayCircle size={18} className="text-primary" />
           </Button>
         )}
-        {!task.isBounty && ( // Hide Edit/Delete for bounties
+        {!task.isBounty && (
           <>
             <Button
               variant="ghost"
