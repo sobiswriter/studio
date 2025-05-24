@@ -118,7 +118,7 @@ export default function HomePage() {
       await Promise.all(bountyPromises);
 
       await updateUserProfileData(user.uid, { lastBountiesGeneratedDate: todayStr });
-      showPixelPalMessage(\`Alright! \${NUM_DAILY_BOUNTIES} new Daily Bounties are up on the board. Go get 'em for sweet XP and Pal Credits!\`, 'suggestion');
+      showPixelPalMessage(`Alright! ${NUM_DAILY_BOUNTIES} new Daily Bounties are up on the board. Go get 'em for sweet XP and Pal Credits!`, 'suggestion');
 
     } catch (error) {
       console.error("Error generating daily bounties:", error);
@@ -165,7 +165,7 @@ export default function HomePage() {
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
           setUserProfile(initialProfile);
-          showPixelPalMessage(\`New hero profile forged for \${user.email || 'you'} in the Firebase cloud! Welcome aboard! You start with \${initialCredits} Pal Credit(s)! Let's go!\`, 'info');
+          showPixelPalMessage(`New hero profile forged for ${user.email || 'you'} in the Firebase cloud! Welcome aboard! You start with ${initialCredits} Pal Credit(s)! Let's go!`, 'info');
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
           showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later. Don't worry, your legend begins now!", 'info');
@@ -217,28 +217,27 @@ export default function HomePage() {
 
   const handleAddTask = async (newTaskData: AddTaskFormValues) => {
     if (!user?.uid) return;
+    
+    if (!newTaskData.title || newTaskData.duration === undefined || !newTaskData.dueDate) {
+      toast({
+        title: "Missing Info!",
+        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        variant: "destructive",
+        className: "font-pixel pixel-corners",
+      });
+      showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding!", 'info');
+      return; 
+    }
     setIsAddingTask(true);
     try {
-      if (!newTaskData.title || newTaskData.duration === undefined || !newTaskData.dueDate) {
-        toast({
-          title: "Missing Info!",
-          description: "Quest Title, Duration, and Due Date are all required, champ!",
-          variant: "destructive",
-          className: "font-pixel pixel-corners",
-        });
-        showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding!", 'info');
-        setIsAddingTask(false); // Ensure loading state is reset
-        return; 
-      }
-
-      showPixelPalMessage(\`XP crunchin' for "\${newTaskData.title}"... Hold tight!\`, 'info');
+      showPixelPalMessage(`XP crunchin' for "${newTaskData.title}"... Hold tight!`, 'info');
       const xpInput: CalculateTaskXpInput = {
         taskTitle: newTaskData.title,
         taskDuration: newTaskData.duration,
       };
       const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
       const taskXp = xpResult.xp;
-      showPixelPalMessage(\`XP calculation complete! "\${newTaskData.title}" is worth \${taskXp} XP. Sweet!\`, 'info');
+      showPixelPalMessage(`XP calculation complete! "${newTaskData.title}" is worth ${taskXp} XP. Sweet!`, 'info');
 
       const newTask: Omit<Task, 'id'> = {
         title: newTaskData.title,
@@ -253,14 +252,14 @@ export default function HomePage() {
 
       const addedTask = await addTaskToDB(user.uid, newTask);
       if (addedTask) {
-        showPixelPalMessage(\`Alright, quest "\${newTask.title}" locked and loaded in the cloud! Go get 'em!\`, 'info');
+        showPixelPalMessage(`Alright, quest "${newTask.title}" locked and loaded in the cloud! Go get 'em!`, 'info');
       } else {
         throw new Error("Task not added to DB or failed to retrieve after adding.");
       }
     } catch (error) {
       console.error("Error during task addition or XP calculation:", error);
-      toast({ title: "Add Task Error", description: \`Could not process "\${newTaskData.title}". Try again.\`, variant: "destructive", className: "font-pixel pixel-corners" });
-      showPixelPalMessage(\`Hmm, cloud save for "\${newTaskData.title}" hiccuped. Try again?\`, 'info');
+      toast({ title: "Add Task Error", description: `Could not process "${newTaskData.title}". Try again.`, variant: "destructive", className: "font-pixel pixel-corners" });
+      showPixelPalMessage(`Hmm, cloud save for "${newTaskData.title}" hiccuped. Try again?`, 'info');
     } finally {
       setIsAddingTask(false);
     }
@@ -277,7 +276,7 @@ export default function HomePage() {
       return;
     }
 
-    setLastCompletedTaskElement(document.getElementById(\`task-\${taskId}\`));
+    setLastCompletedTaskElement(document.getElementById(`task-${taskId}`));
 
     const taskTitleForMessage = originalTask.title;
     const completedTaskXp = originalTask.xp ?? XP_PER_TASK; 
@@ -299,10 +298,9 @@ export default function HomePage() {
     let leveledUp = false;
     let newLevelForMessage = userProfile.level;
     
-    // Ensure currentPalCredits is a number, default to INITIAL_PAL_CREDITS or 0 if not
     let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) 
                              ? userProfile.palCredits 
-                             : INITIAL_PAL_CREDITS; // Or 0 if INITIAL_PAL_CREDITS can also be undefined
+                             : (typeof INITIAL_PAL_CREDITS === 'number' ? INITIAL_PAL_CREDITS : 0);
 
     let creditsGainedOnLevelUp = 0;
     let bonusCreditsEarned = 0;
@@ -344,8 +342,8 @@ export default function HomePage() {
     if (dbSuccess) {
       if (isCompletedParam) {
         let messageText = originalTask.isBounty
-          ? \`Bounty "\${taskTitleForMessage}" crushed! +\${completedTaskXp} XP & +\${completedBountyCredits} Pal Credits! Epic!\`
-          : \`Woohoo! "\${taskTitleForMessage}" conquered! +\${completedTaskXp} XP! You're on a roll!\`;
+          ? `Bounty "${taskTitleForMessage}" crushed! +${completedTaskXp} XP & +${completedBountyCredits} Pal Credits! Epic!`
+          : `Woohoo! "${taskTitleForMessage}" conquered! +${completedTaskXp} XP! You're on a roll!`;
         let messageType: PixelPalMessage['type'] = 'encouragement';
 
         const wasActive = originalTask.isStarted === true; 
@@ -354,15 +352,15 @@ export default function HomePage() {
           const elapsedTimeMs = Date.now() - originalTask.startTime;
           const totalDurationMs = originalTask.duration * 60 * 1000;
           if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined && !originalTask.isBounty) {
-            messageText = \`"\${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+\${completedTaskXp} XP, I guess!)\`;
+            messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info'; 
           } else if (originalTask.timerId !== undefined && !originalTask.isBounty) { 
-            messageText = \`Quest "\${taskTitleForMessage}" timer skipped! Strategic. +\${completedTaskXp} XP!\`;
+            messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
           } else if (originalTask.timerId === undefined && !originalTask.isBounty) { 
-             messageText = \`Beep boop! Timer for "\${taskTitleForMessage}" is UP! Quest auto-completed! +\${completedTaskXp} XP! Nice one!\`;
+             messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
           }
         } else if (originalTask.isBounty && originalTask.timerId === undefined && wasActive) { 
-             messageText = \`Beep boop! Timer for Bounty "\${taskTitleForMessage}" is UP! Bounty auto-completed! +\${completedTaskXp} XP & +\${completedBountyCredits} Pal Credits! Awesome!\`;
+             messageText = `Beep boop! Timer for Bounty "${taskTitleForMessage}" is UP! Bounty auto-completed! +${completedTaskXp} XP & +${completedBountyCredits} Pal Credits! Awesome!`;
         }
         showPixelPalMessage(messageText, messageType);
 
@@ -371,9 +369,9 @@ export default function HomePage() {
         }
 
         if (leveledUp) {
-          let levelUpMessage = \`Whoa! You blasted to Level \${newLevelForMessage}! Gained \${creditsGainedOnLevelUp} Pal Credit(s)!\`;
+          let levelUpMessage = `Whoa! You blasted to Level ${newLevelForMessage}! Gained ${creditsGainedOnLevelUp} Pal Credit(s)!`;
           if (bonusCreditsEarned > 0) {
-            levelUpMessage += \` Plus a BONUS of \${bonusCreditsEarned} credits for hitting a milestone! Total: \${creditsGainedOnLevelUp + bonusCreditsEarned} new credits!\`;
+            levelUpMessage += ` Plus a BONUS of ${bonusCreditsEarned} credits for hitting a milestone! Total: ${creditsGainedOnLevelUp + bonusCreditsEarned} new credits!`;
           }
           levelUpMessage += " New cosmetics might be shining for you!";
           toast({
@@ -382,15 +380,15 @@ export default function HomePage() {
             className: "font-pixel pixel-corners border-2 border-primary shadow-[2px_2px_0px_hsl(var(--primary))]",
           });
           setTimeout(() => {
-            showPixelPalMessage(\`LEVEL \${newLevelForMessage}! You're basically a legend now. Gained \${creditsGainedOnLevelUp + bonusCreditsEarned} Pal Credit(s)! Check for new styles!\`, 'encouragement');
+            showPixelPalMessage(`LEVEL ${newLevelForMessage}! You're basically a legend now. Gained ${creditsGainedOnLevelUp + bonusCreditsEarned} Pal Credit(s)! Check for new styles!`, 'encouragement');
           }, 200);
         }
       } else {
-         showPixelPalMessage(\`\${originalTask.isBounty ? 'Bounty' : 'Quest'} "\${taskTitleForMessage}" is back on the list. No worries!\`, 'info');
+         showPixelPalMessage(`${originalTask.isBounty ? 'Bounty' : 'Quest'} "${taskTitleForMessage}" is back on the list. No worries!`, 'info');
       }
     } else {
-      showPixelPalMessage(\`Cloud sync for "\${taskTitleForMessage}" went sideways. Changes might not stick.\`, 'info');
-      toast({ title: "Sync Error", description: \`Could not update "\${taskTitleForMessage}" in Firebase.\`, variant: "destructive", className: "font-pixel pixel-corners" });
+      showPixelPalMessage(`Cloud sync for "${taskTitleForMessage}" went sideways. Changes might not stick.`, 'info');
+      toast({ title: "Sync Error", description: `Could not update "${taskTitleForMessage}" in Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
     }
   };
 
@@ -402,7 +400,7 @@ export default function HomePage() {
     }
     if (taskToEdit.isStarted) {
       toast({ title: "Active Quest", description: "Cannot edit a quest while its timer is running. Too intense!", className: "font-pixel pixel-corners" });
-      showPixelPalMessage(\`Whoa there! Can't edit "\${taskToEdit.title}" while it's an active quest. Finish or cancel it first!\`, 'info');
+      showPixelPalMessage(`Whoa there! Can't edit "${taskToEdit.title}" while it's an active quest. Finish or cancel it first!`, 'info');
       return;
     }
     setEditingTask(taskToEdit);
@@ -410,38 +408,37 @@ export default function HomePage() {
 
   const handleSaveTask = async (updatedTaskData: Task) => {
     if (!user?.uid) return;
+
+    if (!updatedTaskData.title || updatedTaskData.duration === undefined || !updatedTaskData.dueDate) {
+      toast({
+        title: "Missing Info!",
+        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        variant: "destructive",
+        className: "font-pixel pixel-corners",
+      });
+      showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
+      return; 
+    }
     setIsSavingTask(true);
     try {
-      if (!updatedTaskData.title || updatedTaskData.duration === undefined || !updatedTaskData.dueDate) {
-        toast({
-          title: "Missing Info!",
-          description: "Quest Title, Duration, and Due Date are all required, champ!",
-          variant: "destructive",
-          className: "font-pixel pixel-corners",
-        });
-        showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
-        setIsSavingTask(false); // Ensure loading state is reset
-        return; 
-      }
-
       let finalTask = { ...updatedTaskData };
       const originalTask = tasks.find(t => t.id === updatedTaskData.id);
 
       if (originalTask && (originalTask.title !== updatedTaskData.title || originalTask.duration !== updatedTaskData.duration) && !finalTask.isBounty) {
-        showPixelPalMessage(\`Recalculating XP for "\${updatedTaskData.title}"... one sec!\`, 'info');
+        showPixelPalMessage(`Recalculating XP for "${updatedTaskData.title}"... one sec!`, 'info');
         const xpInput: CalculateTaskXpInput = {
           taskTitle: updatedTaskData.title,
           taskDuration: updatedTaskData.duration, 
         };
         const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
         finalTask.xp = xpResult.xp;
-        showPixelPalMessage(\`XP for "\${updatedTaskData.title}" recalibrated to \${xpResult.xp} XP! All official.\`, 'info');
+        showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
       }
 
       const { timerId, ...taskToSave } = finalTask; 
       const success = await updateTaskInDB(user.uid, taskToSave.id, taskToSave);
       if (success) {
-        showPixelPalMessage(\`Quest "\${finalTask.title}" updated in the cloud. Looking sharp!\`, 'info');
+        showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
         setEditingTask(null); 
       } else {
         throw new Error("DB Update Failed");
@@ -450,11 +447,11 @@ export default function HomePage() {
       console.error("Error saving task or recalculating XP:", error);
       toast({
         title: "Save Error",
-        description: \`Could not save changes for "\${updatedTaskData.title}".\`,
+        description: `Could not save changes for "${updatedTaskData.title}".`,
         variant: "destructive",
         className: "font-pixel pixel-corners",
       });
-      showPixelPalMessage(\`Cloud save for "\${updatedTaskData.title}" edits failed. Changes might be local only.\`, 'info');
+      showPixelPalMessage(`Cloud save for "${updatedTaskData.title}" edits failed. Changes might be local only.`, 'info');
     } finally {
       setIsSavingTask(false);
     }
@@ -474,12 +471,12 @@ export default function HomePage() {
       }
       try {
         await deleteTaskFromDB(user.uid, taskId);
-        showPixelPalMessage(\`Quest "\${taskToDelete.title}" zapped from the records! Poof!\`, 'info');
-        toast({ title: "Quest Deleted", description: \`"\${taskToDelete.title}" has been removed.\`, className: "font-pixel pixel-corners" });
+        showPixelPalMessage(`Quest "${taskToDelete.title}" zapped from the records! Poof!`, 'info');
+        toast({ title: "Quest Deleted", description: `"${taskToDelete.title}" has been removed.`, className: "font-pixel pixel-corners" });
       } catch (error) {
         console.error("Error deleting task from DB:", error);
-        toast({ title: "Delete Error", description: \`Could not delete "\${taskToDelete.title}" from Firebase.\`, variant: "destructive", className: "font-pixel pixel-corners" });
-        showPixelPalMessage(\`Couldn't make "\${taskToDelete.title}" vanish from the cloud. It's gone locally, though.\`, 'info');
+        toast({ title: "Delete Error", description: `Could not delete "${taskToDelete.title}" from Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
+        showPixelPalMessage(`Couldn't make "${taskToDelete.title}" vanish from the cloud. It's gone locally, though.`, 'info');
       }
     }
   };
@@ -488,7 +485,7 @@ export default function HomePage() {
     if (user?.uid && userProfile) {
       const success = await updateUserProfileData(user.uid, { pixelSpriteCosmetics: newCosmetics });
       if (success) {
-        showPixelPalMessage(\`Ooh, look at you! That new style is 🔥! Pal is looking fresh.\`, 'info');
+        showPixelPalMessage(`Ooh, look at you! That new style is 🔥! Pal is looking fresh.`, 'info');
       } else {
         showPixelPalMessage("Tried to update your Pal's look in the cloud, but it didn't stick. Style is local for now!", 'info');
         toast({ title: "Cosmetic Sync Error", description: "Could not save cosmetic changes to Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
@@ -503,8 +500,8 @@ export default function HomePage() {
     }
     const currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) ? userProfile.palCredits : 0;
     if (currentPalCredits < ASK_PAL_COST) {
-      showPixelPalMessage(\`Whoops! You need \${ASK_PAL_COST} Pal Credit(s) to ask me something. Level up or complete bounties!\`, 'info');
-      toast({ title: "Not Enough Pal Credits!", description: \`Complete more quests or level up to earn credits. Cost: \${ASK_PAL_COST}\`, className: "font-pixel pixel-corners" });
+      showPixelPalMessage(`Whoops! You need ${ASK_PAL_COST} Pal Credit(s) to ask me something. Level up or complete bounties!`, 'info');
+      toast({ title: "Not Enough Pal Credits!", description: `Complete more quests or level up to earn credits. Cost: ${ASK_PAL_COST}`, className: "font-pixel pixel-corners" });
       return;
     }
     setIsAskPalModalOpen(true);
@@ -520,14 +517,14 @@ export default function HomePage() {
                             ? userProfile.palCredits 
                             : 0;
     if (currentPalCredits < ASK_PAL_COST) {
-      showPixelPalMessage(\`Not enough credits! You need \${ASK_PAL_COST}, but only have \${currentPalCredits}. Time to quest!\`, 'info');
-      toast({ title: "Not Enough Pal Credits!", description: \`Cost: \${ASK_PAL_COST}, You have: \${currentPalCredits}\`, className: "font-pixel pixel-corners" });
+      showPixelPalMessage(`Not enough credits! You need ${ASK_PAL_COST}, but only have ${currentPalCredits}. Time to quest!`, 'info');
+      toast({ title: "Not Enough Pal Credits!", description: `Cost: ${ASK_PAL_COST}, You have: ${currentPalCredits}`, className: "font-pixel pixel-corners" });
       setIsAskPalModalOpen(false); 
       return;
     }
 
     setIsLoadingAskPal(true);
-    showPixelPalMessage(\`You asked: "\${userQuery}"... Hmm, let me ponder that for a nanosecond!\`, 'info');
+    showPixelPalMessage(`You asked: "${userQuery}"... Hmm, let me ponder that for a nanosecond!`, 'info');
 
 
     const newCredits = Math.max(0, currentPalCredits - ASK_PAL_COST);
@@ -587,7 +584,7 @@ export default function HomePage() {
 
       const success = await updateTaskInDB(user.uid, taskId, { isStarted: true, startTime: Date.now() });
       if (success) {
-        showPixelPalMessage(\`Timer started for "\${taskToStart.title}"! Go get 'em, tiger!\`, 'info');
+        showPixelPalMessage(`Timer started for "${taskToStart.title}"! Go get 'em, tiger!`, 'info');
       } else {
         setTasks(prevTasks => prevTasks.map(t =>
           t.id === taskId
@@ -595,8 +592,8 @@ export default function HomePage() {
             : t
         ));
         if (newTimerId) clearTimeout(newTimerId); 
-        showPixelPalMessage(\`Failed to mark "\${taskToStart.title}" as active in the cloud. Timer cancelled.\`, 'info');
-        toast({ title: "Sync Error", description: \`Could not start timer for "\${taskToStart.title}" in Firebase.\`, variant: "destructive", className: "font-pixel pixel-corners" });
+        showPixelPalMessage(`Failed to mark "${taskToStart.title}" as active in the cloud. Timer cancelled.`, 'info');
+        toast({ title: "Sync Error", description: `Could not start timer for "${taskToStart.title}" in Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
       }
     }
   };
@@ -613,14 +610,14 @@ export default function HomePage() {
       ));
       const success = await updateTaskInDB(user.uid, taskId, { isStarted: false, startTime: undefined, timerId: undefined });
       if (success) {
-        showPixelPalMessage(\`Quest "\${taskToCancel.title}" timer paused. Taking a strategic break, eh?\`, 'info');
+        showPixelPalMessage(`Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, 'info');
       } else {
          setTasks(prevTasks => prevTasks.map(t =>
           t.id === taskId && taskToCancel.startTime 
             ? { ...t, isStarted: true, timerId: taskToCancel.timerId, startTime: taskToCancel.startTime }
             : t
         ));
-        showPixelPalMessage(\`Cloud didn't get the memo on cancelling "\${taskToCancel.title}". Timer might still be "active" there.\`, 'info');
+        showPixelPalMessage(`Cloud didn't get the memo on cancelling "${taskToCancel.title}". Timer might still be "active" there.`, 'info');
       }
     }
   };
@@ -643,7 +640,7 @@ export default function HomePage() {
     const dueNonBountyTasks = tasks.filter(task => !task.isBounty && !task.isCompleted && task.dueDate === today);
 
     if (dueNonBountyTasks.length > 0) {
-      showPixelPalMessage(\`Heads up, superstar! You've got \${dueNonBountyTasks.length} quest\${dueNonBountyTasks.length > 1 ? 's' : ''} on the docket for today. Go shine!\`, 'reminder');
+      showPixelPalMessage(`Heads up, superstar! You've got ${dueNonBountyTasks.length} quest${dueNonBountyTasks.length > 1 ? 's' : ''} on the docket for today. Go shine!`, 'reminder');
     } else if (tasks.filter(t => !t.isBounty).length > 0 && tasks.filter(t => !t.isBounty).every(t => t.isCompleted || t.dueDate !== today || !t.dueDate)) {
       showPixelPalMessage("Today's regular quest log: squeaky clean! Or... you haven't added any for today. Either way, you're the boss!", 'info');
     }
