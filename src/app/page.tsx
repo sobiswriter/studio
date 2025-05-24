@@ -22,13 +22,13 @@ import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcastic
 import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
 import { generateQuestStatusComment as generateQuestStatusCommentFlow, type QuestStatusInput } from '@/ai/flows/generate-quest-status-comment';
 import {
-  XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL,
-  INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, // Re-add PAL_COLORS
+  LEVEL_THRESHOLDS, MAX_LEVEL,
   INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS,
   ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES,
-  DEFAULT_PERSONA_SETTINGS, TYPING_SPEED_MS, POST_TYPING_PAUSE_MS, INITIAL_AI_WELCOME_DELAY_MS
+  DEFAULT_PERSONA_SETTINGS, TYPING_SPEED_MS, POST_TYPING_PAUSE_MS, INITIAL_AI_WELCOME_DELAY_MS, FIVE_MINUTES_MS,
+  PAL_COLORS
 } from '@/lib/constants';
-import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle, Info } from 'lucide-react';
+import { MessageCircleQuestion, Loader2, CloudCog, Zap, PlusCircle, LogOut, Info } from 'lucide-react'; // Ensure all icons are imported
 import Link from 'next/link';
 
 import {
@@ -39,13 +39,12 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService';
+} from '../services/firestoreService'; // Changed to relative path
 import type { Unsubscribe } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
-const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 export default function HomePage() {
   const { user, authLoading, logout } = useAuth();
@@ -77,15 +76,16 @@ export default function HomePage() {
 
   const { toast } = useToast();
 
-  const showPixelPalMessage = useCallback((text: string, type: PixelPalMessage['type']) => {
-    const newMessage: PixelPalMessage = { text, type, timestamp: Date.now() };
+  // Removed useCallback
+  const showPixelPalMessage = (text: string, type: PixelPalMessage['type']) => {
+    const newMessage: PixelPalMessage = { text: text || "...", type, timestamp: Date.now() };
 
     setPixelPalMessageLog(prevLog => {
       const updatedLog = [newMessage, ...prevLog];
       return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
     });
     setMessageQueue(prevQueue => [...prevQueue, newMessage]);
-  }, []);
+  };
 
 
   useEffect(() => {
@@ -94,20 +94,27 @@ export default function HomePage() {
       setCurrentPixelPalMessage(nextMessageToShow);
       setIsPalDisplaySlotActive(true);
 
-      const displayDuration = (nextMessageToShow.text.length * TYPING_SPEED_MS) + POST_TYPING_PAUSE_MS;
+      const typingDuration = (nextMessageToShow.text?.length || 0) * (TYPING_SPEED_MS || 50);
+      const pauseDuration = POST_TYPING_PAUSE_MS || 2000;
+      const displayDuration = typingDuration + pauseDuration;
 
       if (displayTimeoutRef.current) {
         clearTimeout(displayTimeoutRef.current);
       }
 
       displayTimeoutRef.current = setTimeout(() => {
-        setMessageQueue(prevQueue => prevQueue.slice(1)); 
-        setIsPalDisplaySlotActive(false); 
-      }, displayDuration);
+        setCurrentPixelPalMessage(null);
+        setMessageQueue(prevQueue => prevQueue.slice(1));
+        setIsPalDisplaySlotActive(false);
+        displayTimeoutRef.current = null;
+      }, displayDuration > 0 ? displayDuration : 100);
+
     }
+
     return () => {
       if (displayTimeoutRef.current) {
         clearTimeout(displayTimeoutRef.current);
+        displayTimeoutRef.current = null;
       }
     };
   }, [messageQueue, isPalDisplaySlotActive]);
@@ -169,7 +176,7 @@ export default function HomePage() {
     } finally {
       setIsGeneratingBounties(false);
     }
-  }, [user?.uid, userProfile, isGeneratingBounties, showPixelPalMessage, toast]);
+  }, [user?.uid, userProfile, isGeneratingBounties, toast]); // showPixelPalMessage removed from deps as it's stable now
 
 
   useEffect(() => {
@@ -181,7 +188,6 @@ export default function HomePage() {
 
     setIsLoadingProfile(true);
     setIsLoadingTasks(true);
-
 
     const unsubProfile = onUserProfileSnapshot(user.uid, (profileData) => {
       if (profileData) {
@@ -197,9 +203,8 @@ export default function HomePage() {
           xp: 0,
           level: 1,
           palCredits: initialCredits,
-          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default', // Ensure default palColorId
+          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || (PAL_COLORS.length > 0 ? PAL_COLORS[0].id : 'default'),
           palPersona: DEFAULT_PERSONA_SETTINGS,
-          unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
           lastBountiesGeneratedDate: '',
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
@@ -222,8 +227,8 @@ export default function HomePage() {
         ...task,
         isStarted: task.isStarted ?? false,
         startTime: task.startTime,
-        timerId: undefined, 
-        xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? XP_PER_TASK),
+        timerId: undefined,
+        xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? 10), // 10 as fallback from constants.ts
         bountyPalCredits: task.isBounty ? BOUNTY_CREDITS_REWARD : undefined,
       }));
       setTasks(loadedTasks);
@@ -238,11 +243,11 @@ export default function HomePage() {
     return () => {
       unsubProfile();
       unsubTasks();
-      tasks.forEach(task => { 
-        if (task.timerId) clearTimeout(task.timerId);
+      tasks.forEach(task => {
+        if (task.timerId) clearTimeout(task.timerId as unknown as NodeJS.Timeout);
       });
     };
-  }, [user?.uid, toast]);
+  }, [user?.uid, toast]); // Removed tasks from dependency array to avoid re-clearing timers unnecessarily
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -256,14 +261,14 @@ export default function HomePage() {
   const handleAddTask = async (newTaskData: AddTaskFormValues) => {
     if (!user?.uid) return;
 
-    if (!newTaskData.title || newTaskData.duration === undefined || !newTaskData.dueDate) {
+    if (!newTaskData.title || newTaskData.duration === undefined || newTaskData.duration <=0 || !newTaskData.dueDate) {
       toast({
         title: "Missing Info!",
-        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        description: "Quest Title, a positive Duration, and Due Date are all required, champ!",
         variant: "destructive",
         className: "font-pixel pixel-corners",
       });
-      showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding!", 'info');
+      showPixelPalMessage("Whoa there, make sure to fill in all the quest details with valid values before adding!", 'info');
       return;
     }
     setIsAddingTask(true);
@@ -291,6 +296,8 @@ export default function HomePage() {
       const addedTask = await addTaskToDB(user.uid, newTask);
       if (addedTask) {
         showPixelPalMessage(`Alright, quest "${newTask.title}" locked and loaded in the cloud! Go get 'em!`, 'info');
+        // Clear form only on successful addition AFTER AI + DB ops
+        // setTitle(''); setDuration(''); setDueDate(''); // This logic is in AddTaskForm
       } else {
         throw new Error("Task not added to DB or failed to retrieve after adding.");
       }
@@ -317,19 +324,19 @@ export default function HomePage() {
     setLastCompletedTaskElement(document.getElementById(`task-${taskId}`));
 
     const taskTitleForMessage = originalTask.title;
-    const completedTaskXp = originalTask.xp ?? XP_PER_TASK;
+    const completedTaskXp = originalTask.xp ?? 10; // Fallback from constants
     const completedBountyCredits = originalTask.isBounty ? (originalTask.bountyPalCredits ?? BOUNTY_CREDITS_REWARD) : 0;
 
 
     if (originalTask.timerId && isCompletedParam) {
-      clearTimeout(originalTask.timerId);
+      clearTimeout(originalTask.timerId as unknown as NodeJS.Timeout);
     }
 
     const taskUpdateData: Partial<Task> = {
       isCompleted: isCompletedParam,
-      isStarted: isCompletedParam ? false : originalTask.isStarted, 
-      startTime: isCompletedParam ? undefined : originalTask.startTime, 
-      timerId: undefined, 
+      isStarted: isCompletedParam ? false : originalTask.isStarted,
+      startTime: isCompletedParam ? undefined : originalTask.startTime,
+      timerId: undefined,
     };
 
     let profileUpdateData: Partial<UserProfile> | null = null;
@@ -350,9 +357,7 @@ export default function HomePage() {
       const currentSafeXP = userProfile.xp ?? 0;
       const newXP = currentSafeXP + completedTaskXp;
       let newLevel = userProfile.level;
-      let newPalCredits = currentPalCredits + completedBountyCredits; 
-
-      const unlockedCosmetics = [...(userProfile.unlockedCosmetics || INITIAL_UNLOCKED_COSMETICS)];
+      let newPalCredits = currentPalCredits + completedBountyCredits;
 
       while (newLevel < MAX_LEVEL && newXP >= LEVEL_THRESHOLDS[newLevel]) {
         newLevel++;
@@ -367,7 +372,7 @@ export default function HomePage() {
         }
       }
       newLevelForMessage = newLevel;
-      profileUpdateData = { xp: newXP, level: newLevel, palCredits: newPalCredits, unlockedCosmetics };
+      profileUpdateData = { xp: newXP, level: newLevel, palCredits: newPalCredits };
       setShowCompletionAnimation(true);
     }
 
@@ -388,12 +393,12 @@ export default function HomePage() {
           if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined && !originalTask.isBounty) {
             messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info';
-          } else if (originalTask.timerId !== undefined && !originalTask.isBounty) { 
+          } else if (originalTask.timerId !== undefined && !originalTask.isBounty) {
              messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
-          } else if (originalTask.timerId === undefined && !originalTask.isBounty) { 
+          } else if (originalTask.timerId === undefined && !originalTask.isBounty) {
              messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
           }
-        } else if (originalTask.isBounty && originalTask.timerId === undefined && wasActive) { 
+        } else if (originalTask.isBounty && originalTask.timerId === undefined && wasActive) {
              messageText = `Beep boop! Timer for Bounty "${taskTitleForMessage}" is UP! Bounty auto-completed! +${completedTaskXp} XP & +${completedBountyCredits} Pal Credits! Awesome!`;
         }
         showPixelPalMessage(messageText, messageType);
@@ -411,6 +416,7 @@ export default function HomePage() {
             title: "LEVEL UP!",
             description: levelUpMessage,
             className: "font-pixel pixel-corners border-2 border-primary shadow-[2px_2px_0px_hsl(var(--primary))]",
+            duration: 7000,
           });
           setTimeout(() => {
             showPixelPalMessage(`LEVEL ${newLevelForMessage}! You're basically a legend now. Gained ${creditsGainedOnLevelUp + bonusCreditsEarned} Pal Credit(s)!`, 'encouragement');
@@ -442,14 +448,14 @@ export default function HomePage() {
   const handleSaveTask = async (updatedTaskData: Task) => {
     if (!user?.uid) return;
 
-    if (!updatedTaskData.title || updatedTaskData.duration === undefined || !updatedTaskData.dueDate) {
+    if (!updatedTaskData.title || updatedTaskData.duration === undefined || updatedTaskData.duration <= 0 || !updatedTaskData.dueDate) {
       toast({
         title: "Missing Info!",
-        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        description: "Quest Title, a positive Duration, and Due Date are all required, champ!",
         variant: "destructive",
         className: "font-pixel pixel-corners",
       });
-      showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
+      showPixelPalMessage("Hold up! All quest details need to be filled in with valid values, even for edits.", 'info');
       return;
     }
     setIsSavingTask(true);
@@ -468,7 +474,7 @@ export default function HomePage() {
         showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
       }
 
-      const { timerId, ...taskToSave } = finalTask; 
+      const { timerId, ...taskToSave } = finalTask;
       const success = await updateTaskInDB(user.uid, taskToSave.id, taskToSave);
       if (success) {
         showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
@@ -500,7 +506,7 @@ export default function HomePage() {
         return;
       }
       if (taskToDelete.timerId) {
-        clearTimeout(taskToDelete.timerId);
+        clearTimeout(taskToDelete.timerId as unknown as NodeJS.Timeout);
       }
       try {
         await deleteTaskFromDB(user.uid, taskId);
@@ -520,7 +526,7 @@ export default function HomePage() {
     if (user?.uid && userProfile) {
       const currentSafeProfile = {
         ...userProfile,
-        palColorId: userProfile.palColorId || PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default',
+        palColorId: userProfile.palColorId || (PAL_COLORS.find(c => c.id === 'default')?.id || (PAL_COLORS.length > 0 ? PAL_COLORS[0].id : 'default')),
         palPersona: userProfile.palPersona || DEFAULT_PERSONA_SETTINGS,
       };
 
@@ -534,9 +540,9 @@ export default function HomePage() {
         messageTypeSet = true;
       }
       if (newSettings.palPersona) {
-        dataToUpdate.palPersona = { ...currentSafeProfile.palPersona, ...newSettings.palPersona };
-         if (!messageTypeSet) { 
-            showPixelPalMessage(`Pal's personality sliders tweaked! Let's see this new vibe...`, 'info');
+        dataToUpdate.palPersona = { ...(currentSafeProfile.palPersona || DEFAULT_PERSONA_SETTINGS), ...newSettings.palPersona };
+         if (!messageTypeSet) {
+            showPixelPalMessage("Pal's personality sliders tweaked! Let's see this new vibe...", 'info');
          }
       }
 
@@ -572,7 +578,7 @@ export default function HomePage() {
     }
     let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits))
                             ? userProfile.palCredits
-                            : 0; 
+                            : 0;
     if (currentPalCredits < ASK_PAL_COST) {
       showPixelPalMessage(`Not enough credits! You need ${ASK_PAL_COST}, but only have ${currentPalCredits}. Time to quest!`, 'info');
       toast({ title: "Not Enough Pal Credits!", description: `Cost: ${ASK_PAL_COST}, You have: ${currentPalCredits}`, className: "font-pixel pixel-corners" });
@@ -590,7 +596,7 @@ export default function HomePage() {
       showPixelPalMessage("Hmm, my circuits hiccuped trying to use your credit. Try again in a bit?", 'info');
       toast({ title: "Credit Error", description: "Could not use Pal Credit. Please try again.", variant: "destructive", className: "font-pixel pixel-corners" });
       setIsLoadingAskPal(false);
-      return; 
+      return;
     }
 
     try {
@@ -618,7 +624,7 @@ export default function HomePage() {
       });
     } finally {
       setIsLoadingAskPal(false);
-      setIsAskPalModalOpen(false); 
+      setIsAskPalModalOpen(false);
     }
   };
 
@@ -630,7 +636,7 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
 
       const newTimerId = setTimeout(() => {
-        handleToggleComplete(taskId, true); 
+        handleToggleComplete(taskId, true);
          setTasks(prevTasks => prevTasks.map(t =>
             t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined, isCompleted: true } : t
         ));
@@ -651,7 +657,7 @@ export default function HomePage() {
             ? { ...t, isStarted: false, startTime: undefined, timerId: undefined }
             : t
         ));
-        if (newTimerId) clearTimeout(newTimerId); 
+        if (newTimerId) clearTimeout(newTimerId as unknown as NodeJS.Timeout);
         showPixelPalMessage(`Failed to mark "${taskToStart.title}" as active in the cloud. Timer cancelled.`, 'info');
         toast({ title: "Sync Error", description: `Could not start timer for "${taskToStart.title}" in Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
       }
@@ -662,7 +668,7 @@ export default function HomePage() {
     if (!user?.uid) return;
     const taskToCancel = tasks.find(t => t.id === taskId);
     if (taskToCancel && taskToCancel.timerId) {
-      clearTimeout(taskToCancel.timerId);
+      clearTimeout(taskToCancel.timerId as unknown as NodeJS.Timeout);
       setTasks(prevTasks => prevTasks.map(t =>
         t.id === taskId
           ? { ...t, isStarted: false, timerId: undefined, startTime: undefined }
@@ -680,12 +686,12 @@ export default function HomePage() {
   const handleSkipQuest = (taskId: string) => {
     const taskToSkip = tasks.find(t => t.id === taskId);
      if (taskToSkip && taskToSkip.timerId) {
-      clearTimeout(taskToSkip.timerId);
+      clearTimeout(taskToSkip.timerId as unknown as NodeJS.Timeout);
     }
     setTasks(prevTasks => prevTasks.map(t =>
         t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t
     ));
-    handleToggleComplete(taskId, true); 
+    handleToggleComplete(taskId, true);
   };
 
  const checkDueTasksAndRemind = useCallback(async () => {
@@ -724,19 +730,19 @@ export default function HomePage() {
     } finally {
       setIsGeneratingStatusComment(false);
     }
-  }, [user?.uid, userProfile, tasks, isLoadingProfile, isLoadingTasks, isGeneratingStatusComment, showPixelPalMessage]);
+  }, [user?.uid, userProfile, tasks, isLoadingProfile, isLoadingTasks, isGeneratingStatusComment, toast]); // showPixelPalMessage removed
 
 
   useEffect(() => {
     if (user?.uid && !isLoadingProfile && !isLoadingTasks && !initialAiWelcomeFired) {
-      setInitialAiWelcomeFired(true); 
+      setInitialAiWelcomeFired(true);
       const initialTimer = setTimeout(() => {
-        if (!isGeneratingStatusComment) { 
+        if (!isGeneratingStatusComment) {
             checkDueTasksAndRemind();
         }
       }, INITIAL_AI_WELCOME_DELAY_MS);
 
-      return () => clearTimeout(initialTimer); 
+      return () => clearTimeout(initialTimer);
     }
   }, [user?.uid, isLoadingProfile, isLoadingTasks, initialAiWelcomeFired, checkDueTasksAndRemind, isGeneratingStatusComment]);
 
@@ -749,11 +755,13 @@ export default function HomePage() {
   useEffect(() => {
     if (user?.uid && !isLoadingProfile && !isLoadingTasks) {
       const intervalId = setInterval(() => {
-        savedCheckDueTasksAndRemindRef.current();
+        if (!isGeneratingStatusComment) {
+            savedCheckDueTasksAndRemindRef.current();
+        }
       }, FIVE_MINUTES_MS);
       return () => clearInterval(intervalId);
     }
-  }, [user?.uid, isLoadingProfile, isLoadingTasks]);
+  }, [user?.uid, isLoadingProfile, isLoadingTasks, isGeneratingStatusComment]);
 
 
   if (authLoading) {
@@ -766,6 +774,7 @@ export default function HomePage() {
   }
 
   if (!user) {
+    // router.push('/login'); // This was causing issues with hydration, relying on useEffect now
     return (
       <div className="container mx-auto p-4 space-y-6 md:space-y-8 max-w-5xl flex flex-col items-center justify-center min-h-screen">
         <CloudCog size={64} className="text-primary mb-4" />
@@ -793,10 +802,7 @@ export default function HomePage() {
 
   const handleLogout = async () => {
     showPixelPalMessage("Catch ya later, hero! Don't forget to come back and crush more quests!", 'info');
-    setTimeout(async () => {
-      await logout();
-      router.push('/login'); 
-    }, 500);
+    await logout();
   };
 
   return (
@@ -814,7 +820,7 @@ export default function HomePage() {
               <LogOut size={20} />
             </Button>
           ) : (
-            <div className="w-8 h-8" /> 
+            <div className="w-8 h-8" />
           )}
           <h1 className="text-3xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">
             Pixel Due
@@ -831,7 +837,7 @@ export default function HomePage() {
               </Button>
             </Link>
           ) : (
-            <div className="w-8 h-8" /> 
+            <div className="w-8 h-8" />
           )}
         </div>
 
@@ -917,7 +923,11 @@ export default function HomePage() {
 
         <aside className="space-y-6">
           {userProfile && <UserProfileCard userProfile={userProfile} />}
-          <PixelSprite userProfile={userProfile} message={currentPixelPalMessage} />
+          <PixelSprite
+            key={currentPixelPalMessage?.timestamp || 'pal-sprite-default-key'}
+            userProfile={userProfile}
+            message={currentPixelPalMessage}
+          />
           <PixelPalLog messages={pixelPalMessageLog} />
           {userProfile && <PalSettingsPanel userProfile={userProfile} onUpdatePalSettings={handleUpdatePalSettings} />}
           <Button
@@ -954,3 +964,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    

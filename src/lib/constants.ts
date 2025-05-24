@@ -22,7 +22,7 @@ export const PAL_COLORS: { id: string; name: string; imageUrl: string; dataAiHin
   { id: 'forest', name: 'Forest', imageUrl: 'https://drive.google.com/uc?export=view&id=1r8Kr0OKuRi5pLU0WK1pU308nWFowAWQq', dataAiHint: 'pixel wizard green' },
 ];
 
-export const INITIAL_UNLOCKED_COSMETICS = PAL_COLORS.map(c => c.id); // All colors unlocked by default
+export const INITIAL_UNLOCKED_COSMETICS = PAL_COLORS.map(c => c.id);
 
 export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
 
@@ -43,5 +43,7 @@ export const DEFAULT_PERSONA_SETTINGS = {
 
 // For Pixel Pal message typing effect
 export const TYPING_SPEED_MS = 50; // Milliseconds per character
-export const POST_TYPING_PAUSE_MS = 2500; // Milliseconds to pause after typing
-export const INITIAL_AI_WELCOME_DELAY_MS = 7000; // Milliseconds to delay initial AI welcome (increased from 3000 to 7000)
+export const POST_TYPING_PAUSE_MS = 2000; // Milliseconds to pause after typing
+export const INITIAL_AI_WELCOME_DELAY_MS = 7000; // Milliseconds to delay initial AI welcome
+
+export const FIVE_MINUTES_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
