@@ -3,17 +3,17 @@
 import type { Task } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-// import { PixelTaskIcon } from '@/components/icons/PixelTaskIcon'; // Not used, can be removed if not needed elsewhere
-import { Edit3, Trash2, Clock, CalendarDays, PlayCircle } from 'lucide-react';
+import { Edit3, Trash2, Clock, CalendarDays, PlayCircle, Star } from 'lucide-react'; // Added Star
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { XP_PER_TASK } from '@/lib/constants'; // Import default XP
 
 interface TaskItemProps {
   task: Task;
   onToggleComplete: (taskId: string, isCompleted: boolean) => void;
   onEditTask: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
-  onStartQuest?: (taskId: string) => void; // Optional for now, will be used from TaskList
+  onStartQuest?: (taskId: string) => void;
 }
 
 export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onStartQuest }: TaskItemProps) {
@@ -23,9 +23,11 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
     onToggleComplete(task.id, !task.isCompleted);
   };
 
+  const displayXp = task.xp ?? XP_PER_TASK; // Use task.xp if available, else default
+
   return (
     <div
-      id={`task-${task.id}`} // Added id for sparkle animation target
+      id={`task-${task.id}`}
       className={cn(
         "flex items-center gap-3 p-3 rounded-md border-2 border-foreground bg-card transition-all duration-200 pixel-corners",
         task.isCompleted ? "bg-muted opacity-70" : "hover:shadow-[2px_2px_0px_hsl(var(--foreground))]",
@@ -35,12 +37,12 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
       onMouseLeave={() => setIsHovered(false)}
     >
       <Checkbox
-        id={`task-checkbox-${task.id}`} // Ensure unique id for label association
+        id={`task-checkbox-${task.id}`}
         checked={task.isCompleted}
         onCheckedChange={handleCheckboxChange}
         className="border-2 border-foreground data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground pixel-corners w-6 h-6"
         aria-label={`Mark task ${task.title} as ${task.isCompleted ? 'incomplete' : 'complete'}`}
-        disabled={!!task.isStarted} // Disable checkbox if task is started
+        disabled={!!task.isStarted}
       />
       <div className="flex-grow">
         <label
@@ -48,7 +50,7 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
           className={cn(
             "font-pixel text-base cursor-pointer",
             task.isCompleted && "line-through text-muted-foreground",
-            task.isStarted && !task.isCompleted && "text-accent" // Style for started task
+            task.isStarted && !task.isCompleted && "text-accent"
           )}
         >
           {task.title} {task.isStarted && !task.isCompleted && "(Active)"}
@@ -59,6 +61,11 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
           )}
           {task.dueDate && (
             <span className="flex items-center gap-1 font-pixel"><CalendarDays size={12} /> {task.dueDate}</span>
+          )}
+          {!task.isCompleted && ( // Only show XP for incomplete tasks
+            <span className="flex items-center gap-1 font-pixel text-yellow-500">
+              <Star size={12} className="text-yellow-400" /> {displayXp} XP
+            </span>
           )}
         </div>
       </div>
@@ -80,7 +87,7 @@ export function TaskItem({ task, onToggleComplete, onEditTask, onDeleteTask, onS
           onClick={() => onEditTask(task)}
           className="w-8 h-8 p-1 hover:bg-accent/20 active:bg-accent/40"
           aria-label={`Edit task ${task.title}`}
-          disabled={!!task.isStarted} // Disable edit if task is started
+          disabled={!!task.isStarted}
         >
           <Edit3 size={16} className="text-foreground" />
         </Button>

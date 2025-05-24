@@ -8,6 +8,7 @@ export interface Task {
   isStarted?: boolean; // True if the timer for this task is active
   startTime?: number; // Timestamp of when the task was started
   timerId?: number; // ID of the setTimeout for the timer
+  xp?: number; // Experience points for completing the task
 }
 
 export interface CosmeticItem {

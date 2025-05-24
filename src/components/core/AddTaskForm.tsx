@@ -6,23 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Loader2 } from 'lucide-react'; // Added Loader2
 
 interface AddTaskFormProps {
-  onAddTask: (task: Omit<Task, 'id' | 'isCompleted' | 'createdAt'>) => void;
+  onAddTask: (taskData: Omit<Task, 'id' | 'isCompleted' | 'createdAt' | 'xp'>) => Promise<void>; // Updated to Promise
+  isAdding: boolean; // New prop
 }
 
-export function AddTaskForm({ onAddTask }: AddTaskFormProps) {
+export function AddTaskForm({ onAddTask, isAdding }: AddTaskFormProps) {
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('');
   const [dueDate, setDueDate] = useState('');
 
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || isAdding) return;
 
-    onAddTask({
+    await onAddTask({ // Await the onAddTask call
       title,
       duration: duration ? parseInt(duration, 10) : undefined,
       dueDate: dueDate || undefined,
@@ -50,6 +51,7 @@ export function AddTaskForm({ onAddTask }: AddTaskFormProps) {
               placeholder="e.g., Study Maths for 50 min"
               required
               className="font-pixel input-pixel"
+              disabled={isAdding}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -62,6 +64,7 @@ export function AddTaskForm({ onAddTask }: AddTaskFormProps) {
                 onChange={(e) => setDuration(e.target.value)}
                 placeholder="e.g., 60"
                 className="font-pixel input-pixel"
+                disabled={isAdding}
               />
             </div>
             <div>
@@ -72,11 +75,19 @@ export function AddTaskForm({ onAddTask }: AddTaskFormProps) {
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="font-pixel input-pixel"
+                disabled={isAdding}
               />
             </div>
           </div>
-          <Button type="submit" className="w-full font-pixel btn-pixel">
-            Add Quest
+          <Button type="submit" className="w-full font-pixel btn-pixel" disabled={isAdding}>
+            {isAdding ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Calculating XP & Adding...
+              </>
+            ) : (
+              "Add Quest"
+            )}
           </Button>
         </form>
       </CardContent>
