@@ -201,7 +201,7 @@ export default function HomePage() {
   return (
     <div className="container mx-auto p-4 space-y-6 md:space-y-8 max-w-5xl">
       <header className="text-center py-4">
-        <h1 className="text-4xl md:text-5xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">Task Sprite Quest</h1>
+        <h1 className="text-4xl md:text-5xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">Pixel Due</h1>
       </header>
 
       <main className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
