@@ -15,25 +15,19 @@ export interface Task {
   bountyGenerationDate?: string; // YYYY-MM-DD, when the bounty was generated
 }
 
-export interface CosmeticItem {
-  id: string;
-  name: string;
-  type: 'hat' | 'accessory' | 'color';
-  imageUrl?: string; // For placeholder or actual image
-  dataAiHint?: string;
-}
-
 export interface UserProfile {
-  uid: string; // Simulated User ID
+  uid: string;
+  displayName?: string; // User's preferred display name
   xp: number;
   level: number;
   palCredits: number;
-  pixelSpriteCosmetics: {
-    hat: string; // ID of the hat cosmetic item
-    accessory: string; // ID of the accessory cosmetic item
-    color: string; // ID of the color cosmetic item
+  palColorId: string; // ID of the Pal's base color
+  palPersona: {
+    sarcasm: number; // e.g., 0-100
+    helpfulness: number; // e.g., 0-100
+    chattiness: number; // e.g., 0-100
   };
-  unlockedCosmetics: string[]; // Array of cosmetic item IDs
+  unlockedCosmetics: string[]; // Array of PAL_COLOR item IDs
   lastBountiesGeneratedDate?: string; // YYYY-MM-DD
 }
 

@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import type { UserProfile, PixelPalMessage } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PAL_COLORS, HATS, ACCESSORIES } from '@/lib/constants';
+import { PAL_COLORS } from '@/lib/constants';
 import { useEffect, useState } from 'react';
 
 interface PixelSpriteProps {
@@ -13,51 +13,18 @@ interface PixelSpriteProps {
 }
 
 export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
-  const [basePalImageUrl, setBasePalImageUrl] = useState('https://placehold.co/128x128/8A2BE2/FFFFFF.png?text=Pal');
-  const [hatImageUrl, setHatImageUrl] = useState<string | null>(null);
-  const [accessoryImageUrl, setAccessoryImageUrl] = useState<string | null>(null);
-  const [hatAlt, setHatAlt] = useState<string | null>(null);
-  const [accessoryAlt, setAccessoryAlt] = useState<string | null>(null);
-  const [hatDataAiHint, setHatDataAiHint] = useState<string | null>(null);
-  const [accessoryDataAiHint, setAccessoryDataAiHint] = useState<string | null>(null);
-
+  const [basePalImageUrl, setBasePalImageUrl] = useState('https://placehold.co/128x128/8A2BE2/FFFFFF.png?text=Pal&font=pixel');
 
   useEffect(() => {
-    let currentSpriteColorHex = PAL_COLORS.find(c => c.id === 'default')?.hex || '#8A2BE2';
-    if (userProfile?.pixelSpriteCosmetics.color) {
-      const selectedColorObj = PAL_COLORS.find(c => c.id === userProfile.pixelSpriteCosmetics.color);
+    let currentSpriteColorHex = PAL_COLORS.find(c => c.id === 'default')?.hex || '#8A2BE2'; // Default color
+    if (userProfile?.palColorId) {
+      const selectedColorObj = PAL_COLORS.find(c => c.id === userProfile.palColorId);
       if (selectedColorObj) {
         currentSpriteColorHex = selectedColorObj.hex;
       }
     }
     setBasePalImageUrl(`https://placehold.co/128x128/${currentSpriteColorHex.substring(1)}/FFFFFF.png?text=Pal&font=pixel`);
-
-    if (userProfile?.pixelSpriteCosmetics.hat && userProfile.pixelSpriteCosmetics.hat !== 'none') {
-      const hatDetails = HATS.find(h => h.id === userProfile.pixelSpriteCosmetics.hat);
-      if (hatDetails) {
-        setHatImageUrl(`https://placehold.co/64x48/00000000/FFFFFF.png?text=${encodeURIComponent(hatDetails.name)}&font=pixel`);
-        setHatAlt(hatDetails.name);
-        setHatDataAiHint(hatDetails.dataAiHint);
-      } else {
-        setHatImageUrl(null);
-      }
-    } else {
-      setHatImageUrl(null);
-    }
-
-    if (userProfile?.pixelSpriteCosmetics.accessory && userProfile.pixelSpriteCosmetics.accessory !== 'none') {
-      const accessoryDetails = ACCESSORIES.find(a => a.id === userProfile.pixelSpriteCosmetics.accessory);
-      if (accessoryDetails) {
-        setAccessoryImageUrl(`https://placehold.co/48x48/00000000/FFFFFF.png?text=${encodeURIComponent(accessoryDetails.name)}&font=pixel`);
-        setAccessoryAlt(accessoryDetails.name);
-        setAccessoryDataAiHint(accessoryDetails.dataAiHint);
-      } else {
-        setAccessoryImageUrl(null);
-      }
-    } else {
-      setAccessoryImageUrl(null);
-    }
-  }, [userProfile?.pixelSpriteCosmetics]);
+  }, [userProfile?.palColorId]);
 
   return (
     <Card className="pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
@@ -71,43 +38,15 @@ export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
         >
           {/* Base Pal Image */}
           <Image
-            key={basePalImageUrl} // Add key to force re-render on src change
+            key={basePalImageUrl} 
             src={basePalImageUrl}
             alt="Pixel Pal Base"
             width={128}
             height={128}
             className="object-contain pixel-corners"
             data-ai-hint="pixel character base body"
-            priority // Preload the base image
+            priority
           />
-
-          {/* Hat Image (Layered on top) */}
-          {hatImageUrl && hatAlt && (
-            <Image
-              key={hatImageUrl}
-              src={hatImageUrl}
-              alt={hatAlt}
-              width={64} // Adjust size as needed
-              height={48} // Adjust size as needed
-              className="absolute top-[-8px] left-1/2 -translate-x-1/2 object-contain pixel-corners z-10"
-              style={{ imageRendering: 'pixelated' }}
-              data-ai-hint={hatDataAiHint || "pixel hat"}
-            />
-          )}
-
-          {/* Accessory Image (Layered on top) */}
-          {accessoryImageUrl && accessoryAlt && (
-            <Image
-              key={accessoryImageUrl}
-              src={accessoryImageUrl}
-              alt={accessoryAlt}
-              width={48} // Adjust size as needed
-              height={48} // Adjust size as needed
-              className="absolute bottom-[20px] right-[10px] object-contain pixel-corners z-10" // Adjust positioning
-              style={{ imageRendering: 'pixelated' }}
-              data-ai-hint={accessoryDataAiHint || "pixel accessory"}
-            />
-          )}
         </div>
         {message && (
           <div className="w-full p-3 bg-secondary rounded pixel-corners border border-foreground text-sm">

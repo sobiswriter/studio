@@ -11,7 +11,7 @@ import { UserProfileCard } from '@/components/core/UserProfileCard';
 import { EditTaskModal } from '@/components/core/EditTaskModal';
 import { AskPalModal } from '@/components/core/AskPalModal';
 import { DailyBountyList } from '@/components/core/DailyBountyList';
-import { CosmeticCustomizationPanel } from '@/components/core/CosmeticCustomizationPanel';
+import { PalSettingsPanel } from '@/components/core/CosmeticCustomizationPanel'; // Ensure this path is correct if you rename the file
 import { AnimatedCompletion } from '@/components/core/AnimatedCompletion';
 import { PixelPalLog } from '@/components/core/PixelPalLog';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type CalculateTaskXpOutput } from '@/ai/flows/calculate-task-xp';
 import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentInput, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
 import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesInput, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
-import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, HATS, ACCESSORIES, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES } from '@/lib/constants';
+import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES, DEFAULT_PERSONA_SETTINGS } from '@/lib/constants';
 import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -32,9 +32,9 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService'; // Changed to relative path
+} from '../services/firestoreService';
 import type { Unsubscribe } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
+import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
@@ -150,21 +150,18 @@ export default function HomePage() {
                                 : 0; 
         const initialProfile: UserProfile = {
           uid: user.uid,
-          email: user.email || undefined,
+          displayName: user.displayName || user.email?.split('@')[0] || 'Pixel Hero',
           xp: 0,
           level: 1,
           palCredits: initialCredits,
-          pixelSpriteCosmetics: {
-            hat: HATS.find(h => h.id === 'none')?.id || 'none',
-            accessory: ACCESSORIES.find(a => a.id === 'none')?.id || 'none',
-            color: PAL_COLORS.find(c => c.id === 'default')?.id || 'default',
-          },
-          unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
+          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || 'default',
+          palPersona: DEFAULT_PERSONA_SETTINGS,
+          unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS, // Now only Pal colors
           lastBountiesGeneratedDate: '',
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
           setUserProfile(initialProfile);
-          showPixelPalMessage(`New hero profile forged for ${user.email || 'you'} in the Firebase cloud! Welcome aboard! You start with ${initialCredits} Pal Credit(s)! Let's go!`, 'info');
+          showPixelPalMessage(`New hero profile forged for ${initialProfile.displayName} in the Firebase cloud! Welcome aboard! You start with ${initialCredits} Pal Credit(s)! Let's go!`, 'info');
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
           showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later. Don't worry, your legend begins now!", 'info');
@@ -203,7 +200,8 @@ export default function HomePage() {
         if (task.timerId) clearTimeout(task.timerId);
       });
     };
-  }, [user?.uid, toast, showPixelPalMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, toast, showPixelPalMessage]); 
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -310,6 +308,7 @@ export default function HomePage() {
       let newLevel = userProfile.level;
       let newPalCredits = currentPalCredits + completedBountyCredits; 
 
+      // Unlocked cosmetics logic simplified as HATS/ACCESSORIES removed
       const unlockedCosmetics = [...(userProfile.unlockedCosmetics || INITIAL_UNLOCKED_COSMETICS)];
 
       while (newLevel < MAX_LEVEL && newXP >= LEVEL_THRESHOLDS[newLevel]) {
@@ -323,13 +322,6 @@ export default function HomePage() {
           newPalCredits += BONUS_CREDITS_PER_5_LEVELS;
           bonusCreditsEarned += BONUS_CREDITS_PER_5_LEVELS;
         }
-        
-        const nextHat = HATS.find(h => !unlockedCosmetics.includes(h.id));
-        if (nextHat) unlockedCosmetics.push(nextHat.id);
-        const nextAccessory = ACCESSORIES.find(a => !unlockedCosmetics.includes(a.id));
-        if (nextAccessory) unlockedCosmetics.push(nextAccessory.id);
-        const nextColor = PAL_COLORS.find(c => !unlockedCosmetics.includes(c.id));
-        if (nextColor) unlockedCosmetics.push(nextColor.id);
       }
       newLevelForMessage = newLevel;
       profileUpdateData = { xp: newXP, level: newLevel, palCredits: newPalCredits, unlockedCosmetics };
@@ -372,14 +364,14 @@ export default function HomePage() {
           if (bonusCreditsEarned > 0) {
             levelUpMessage += ` Plus a BONUS of ${bonusCreditsEarned} credits for hitting a milestone! Total: ${creditsGainedOnLevelUp + bonusCreditsEarned} new credits!`;
           }
-          levelUpMessage += " New cosmetics might be shining for you!";
+          // levelUpMessage += " New cosmetics might be shining for you!"; // Old message
           toast({
             title: "LEVEL UP!",
             description: levelUpMessage,
             className: "font-pixel pixel-corners border-2 border-primary shadow-[2px_2px_0px_hsl(var(--primary))]",
           });
           setTimeout(() => {
-            showPixelPalMessage(`LEVEL ${newLevelForMessage}! You're basically a legend now. Gained ${creditsGainedOnLevelUp + bonusCreditsEarned} Pal Credit(s)! Check for new styles!`, 'encouragement');
+            showPixelPalMessage(`LEVEL ${newLevelForMessage}! You're basically a legend now. Gained ${creditsGainedOnLevelUp + bonusCreditsEarned} Pal Credit(s)!`, 'encouragement');
           }, 200);
         }
       } else {
@@ -480,17 +472,37 @@ export default function HomePage() {
     }
   };
 
-  const handleUpdateCosmetics = async (newCosmetics: UserProfile['pixelSpriteCosmetics']) => {
+  const handleUpdatePalSettings = async (
+    newSettings: Partial<{ palColorId: string; palPersona: UserProfile['palPersona'] }>
+  ) => {
     if (user?.uid && userProfile) {
-      const success = await updateUserProfileData(user.uid, { pixelSpriteCosmetics: newCosmetics });
+      const currentSafeProfile = {
+        ...userProfile,
+        palPersona: userProfile.palPersona || DEFAULT_PERSONA_SETTINGS, // Ensure palPersona exists
+      };
+      
+      const dataToUpdate: Partial<UserProfile> = {};
+      if (newSettings.palColorId) {
+        dataToUpdate.palColorId = newSettings.palColorId;
+      }
+      if (newSettings.palPersona) {
+        dataToUpdate.palPersona = { ...currentSafeProfile.palPersona, ...newSettings.palPersona };
+      }
+  
+      const success = await updateUserProfileData(user.uid, dataToUpdate);
       if (success) {
-        showPixelPalMessage(`Ooh, look at you! That new style is 🔥! Pal is looking fresh.`, 'info');
+        if (newSettings.palColorId) {
+            showPixelPalMessage(`Pal's looking snazzy in that new color!`, 'info');
+        } else {
+            showPixelPalMessage(`Pal's personality settings updated! Let's see how this goes...`, 'info');
+        }
       } else {
-        showPixelPalMessage("Tried to update your Pal's look in the cloud, but it didn't stick. Style is local for now!", 'info');
-        toast({ title: "Cosmetic Sync Error", description: "Could not save cosmetic changes to Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
+        showPixelPalMessage("Tried to update your Pal's settings in the cloud, but it didn't stick. Changes might be local for now!", 'info');
+        toast({ title: "Settings Sync Error", description: "Could not save Pal settings to Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
       }
     }
   };
+
 
   const openAskPalModalHandler = () => {
     if (!user?.uid || !userProfile) {
@@ -690,14 +702,14 @@ export default function HomePage() {
   const completedDailyBounties = tasks.filter(task => task.isBounty && task.bountyGenerationDate === todayString && task.isCompleted);
 
   const handleLogout = async () => {
+    showPixelPalMessage("Catch ya later, hero! Don't forget to come back and crush more quests!", 'info');
     await logout();
     router.push('/login');
   };
 
   return (
     <div className="container mx-auto p-4 space-y-6 md:space-y-8 max-w-5xl">
-      <header className="relative py-4 text-center">
-        {/* Mobile Header */}
+      <header className="relative py-8 text-center"> 
         <div className="flex items-center justify-between px-4 md:hidden">
           {user ? (
             <Button
@@ -710,7 +722,7 @@ export default function HomePage() {
               <LogOut size={20} />
             </Button>
           ) : (
-            <div className="w-8 h-8" /> /* Placeholder for balance */
+            <div className="w-8 h-8" /> 
           )}
           <h1 className="text-3xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">
             Pixel Due
@@ -727,11 +739,10 @@ export default function HomePage() {
               </Button>
             </Link>
           ) : (
-            <div className="w-8 h-8" /> /* Placeholder for balance */
+            <div className="w-8 h-8" /> 
           )}
         </div>
 
-        {/* Desktop Header */}
         <h1 className="hidden md:block text-4xl lg:text-5xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">
           Pixel Due
         </h1>
@@ -807,14 +818,14 @@ export default function HomePage() {
           {userProfile && <UserProfileCard userProfile={userProfile} />}
           <PixelSprite userProfile={userProfile} message={currentPixelPalMessage} />
           <PixelPalLog messages={pixelPalMessageLog} />
-          {userProfile && <CosmeticCustomizationPanel userProfile={userProfile} onUpdateCosmetics={handleUpdateCosmetics} />}
+          {userProfile && <PalSettingsPanel userProfile={userProfile} onUpdatePalSettings={handleUpdatePalSettings} />}
           <Button
             onClick={openAskPalModalHandler} 
             disabled={!userProfile || (typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0) < ASK_PAL_COST || isLoadingAskPal}
             className="w-full font-pixel btn-pixel flex items-center justify-center gap-2"
           >
             <MessageCircleQuestion size={18} /> 
-            Ask your Pal ({(userProfile && typeof userProfile.palCredits === 'number') ? userProfile.palCredits : 0} Credits)
+            Ask your Pal (Cost: {ASK_PAL_COST} - You have: {(userProfile && typeof userProfile.palCredits === 'number') ? userProfile.palCredits : 0})
           </Button>
         </aside>
       </main>
@@ -842,6 +853,3 @@ export default function HomePage() {
     </div>
   );
 }
-    
-
-    

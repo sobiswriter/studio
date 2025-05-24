@@ -15,20 +15,6 @@ export const LEVEL_THRESHOLDS = [
   // Add more levels as needed
 ];
 
-export const HATS: { id: string; name: string; dataAiHint: string }[] = [
-  { id: 'none', name: 'None', dataAiHint: 'empty' },
-  { id: 'beanie', name: 'Beanie', dataAiHint: 'pixel beanie hat' },
-  { id: 'crown', name: 'Crown', dataAiHint: 'pixel crown' },
-  { id: 'wizard_hat', name: 'Wizard Hat', dataAiHint: 'pixel wizard hat' },
-];
-
-export const ACCESSORIES: { id: string; name: string; dataAiHint: string }[] = [
-  { id: 'none', name: 'None', dataAiHint: 'empty' },
-  { id: 'glasses', name: 'Glasses', dataAiHint: 'pixel glasses' },
-  { id: 'scarf', name: 'Scarf', dataAiHint: 'pixel scarf' },
-  { id: 'backpack', name: 'Backpack', dataAiHint: 'pixel backpack' },
-];
-
 export const PAL_COLORS: { id: string; name: string; hex: string, dataAiHint: string }[] = [
   { id: 'default', name: 'Default', hex: '#8A2BE2', dataAiHint: 'pixel character purple' }, // Default purple
   { id: 'rose', name: 'Rose', hex: '#FF7F7F', dataAiHint: 'pixel character rose' },
@@ -36,12 +22,8 @@ export const PAL_COLORS: { id: string; name: string; hex: string, dataAiHint: st
   { id: 'forest', name: 'Forest', hex: '#228B22', dataAiHint: 'pixel character green' },
 ];
 
-// Combine all default unlockable cosmetics for initial state
-export const INITIAL_UNLOCKED_COSMETICS = [
-  ...HATS.map(h => h.id),
-  ...ACCESSORIES.map(a => a.id),
-  ...PAL_COLORS.map(c => c.id),
-];
+// INITIAL_UNLOCKED_COSMETICS now only includes Pal colors
+export const INITIAL_UNLOCKED_COSMETICS = PAL_COLORS.map(c => c.id);
 
 export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
 
@@ -53,3 +35,10 @@ export const ASK_PAL_COST = 1;
 export const BOUNTY_XP_REWARD = 25;
 export const BOUNTY_CREDITS_REWARD = 5;
 export const NUM_DAILY_BOUNTIES = 5;
+
+// Default persona settings
+export const DEFAULT_PERSONA_SETTINGS = {
+  sarcasm: 50,    // Mid-range
+  helpfulness: 75, // Generally helpful
+  chattiness: 60,  // Moderately talkative
+};
