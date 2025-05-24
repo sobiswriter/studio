@@ -11,7 +11,7 @@ import { UserProfileCard } from '@/components/core/UserProfileCard';
 import { EditTaskModal } from '@/components/core/EditTaskModal';
 import { AskPalModal } from '@/components/core/AskPalModal';
 import { DailyBountyList } from '@/components/core/DailyBountyList';
-import { PalSettingsPanel } from '@/components/core/CosmeticCustomizationPanel'; // Ensure this path is correct if you rename the file
+import { PalSettingsPanel } from '@/components/core/PalSettingsPanel';
 import { AnimatedCompletion } from '@/components/core/AnimatedCompletion';
 import { PixelPalLog } from '@/components/core/PixelPalLog';
 import { Button } from '@/components/ui/button';
@@ -32,9 +32,9 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService';
+} from '../services/firestoreService'; // Changed to relative path
 import type { Unsubscribe } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
@@ -145,18 +145,20 @@ export default function HomePage() {
       if (profileData) {
         setUserProfile(profileData);
       } else {
+        // New user, create profile
         const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS)) 
                                 ? INITIAL_PAL_CREDITS 
                                 : 0; 
         const initialProfile: UserProfile = {
           uid: user.uid,
           displayName: user.displayName || user.email?.split('@')[0] || 'Pixel Hero',
+          email: user.email || undefined,
           xp: 0,
           level: 1,
           palCredits: initialCredits,
           palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || 'default',
           palPersona: DEFAULT_PERSONA_SETTINGS,
-          unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS, // Now only Pal colors
+          unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
           lastBountiesGeneratedDate: '',
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
@@ -308,7 +310,6 @@ export default function HomePage() {
       let newLevel = userProfile.level;
       let newPalCredits = currentPalCredits + completedBountyCredits; 
 
-      // Unlocked cosmetics logic simplified as HATS/ACCESSORIES removed
       const unlockedCosmetics = [...(userProfile.unlockedCosmetics || INITIAL_UNLOCKED_COSMETICS)];
 
       while (newLevel < MAX_LEVEL && newXP >= LEVEL_THRESHOLDS[newLevel]) {
@@ -364,7 +365,6 @@ export default function HomePage() {
           if (bonusCreditsEarned > 0) {
             levelUpMessage += ` Plus a BONUS of ${bonusCreditsEarned} credits for hitting a milestone! Total: ${creditsGainedOnLevelUp + bonusCreditsEarned} new credits!`;
           }
-          // levelUpMessage += " New cosmetics might be shining for you!"; // Old message
           toast({
             title: "LEVEL UP!",
             description: levelUpMessage,
@@ -478,7 +478,7 @@ export default function HomePage() {
     if (user?.uid && userProfile) {
       const currentSafeProfile = {
         ...userProfile,
-        palPersona: userProfile.palPersona || DEFAULT_PERSONA_SETTINGS, // Ensure palPersona exists
+        palPersona: userProfile.palPersona || DEFAULT_PERSONA_SETTINGS,
       };
       
       const dataToUpdate: Partial<UserProfile> = {};
@@ -548,10 +548,17 @@ export default function HomePage() {
       return;
     }
     
-    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null);
+    // Optimistically update local state for smoother UX, Firebase listener will eventually confirm
+    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null); 
 
     try {
-      const aiInput: PalSarcasticCommentInput = { userQuery }; 
+      const persona = userProfile.palPersona || DEFAULT_PERSONA_SETTINGS;
+      const aiInput: PalSarcasticCommentInput = { 
+        userQuery,
+        sarcasmLevel: persona.sarcasm,
+        helpfulnessLevel: persona.helpfulness,
+        chattinessLevel: persona.chattiness,
+      };
       const result: PalSarcasticCommentOutput = await getPalSarcasticCommentFlow(aiInput);
       if (result.comment) {
         showPixelPalMessage(result.comment, 'askPalResponse'); 
@@ -853,3 +860,4 @@ export default function HomePage() {
     </div>
   );
 }
+
