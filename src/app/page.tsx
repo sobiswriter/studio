@@ -23,10 +23,11 @@ import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyB
 import { generateQuestStatusComment as generateQuestStatusCommentFlow, type QuestStatusInput } from '@/ai/flows/generate-quest-status-comment';
 import {
   XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL,
-  INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, // Re-add PAL_COLORS
+  INITIAL_UNLOCKED_COSMETICS, PAL_COLORS,
   INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS,
   ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES,
-  DEFAULT_PERSONA_SETTINGS, TYPING_SPEED_MS, POST_TYPING_PAUSE_MS, INITIAL_AI_WELCOME_DELAY_MS
+  DEFAULT_PERSONA_SETTINGS,
+  TYPING_SPEED_MS, POST_TYPING_PAUSE_MS, INITIAL_AI_WELCOME_DELAY_MS
 } from '@/lib/constants';
 import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle, Info } from 'lucide-react';
 import Link from 'next/link';
@@ -39,9 +40,9 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService';
+} from '../services/firestoreService'; // Changed to relative path
 import type { Unsubscribe } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
@@ -60,6 +61,7 @@ export default function HomePage() {
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
 
+  // State for managing the message queue and display slot
   const [messageQueue, setMessageQueue] = useState<PixelPalMessage[]>([]);
   const [isPalDisplaySlotActive, setIsPalDisplaySlotActive] = useState(false);
   const displayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -84,10 +86,12 @@ export default function HomePage() {
       const updatedLog = [newMessage, ...prevLog];
       return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
     });
+    // Add to the queue
     setMessageQueue(prevQueue => [...prevQueue, newMessage]);
   }, []);
 
 
+  // Effect to process the message queue
   useEffect(() => {
     if (!isPalDisplaySlotActive && messageQueue.length > 0) {
       const nextMessageToShow = messageQueue[0];
@@ -101,16 +105,17 @@ export default function HomePage() {
       }
 
       displayTimeoutRef.current = setTimeout(() => {
-        setMessageQueue(prevQueue => prevQueue.slice(1)); 
-        setIsPalDisplaySlotActive(false); 
+        setMessageQueue(prevQueue => prevQueue.slice(1));
+        setIsPalDisplaySlotActive(false);
       }, displayDuration);
     }
+
     return () => {
       if (displayTimeoutRef.current) {
         clearTimeout(displayTimeoutRef.current);
       }
     };
-  }, [messageQueue, isPalDisplaySlotActive]);
+  }, [messageQueue, isPalDisplaySlotActive]); // TYPING_SPEED_MS and POST_TYPING_PAUSE_MS removed as they are constants
 
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
@@ -182,11 +187,10 @@ export default function HomePage() {
     setIsLoadingProfile(true);
     setIsLoadingTasks(true);
 
-
     const unsubProfile = onUserProfileSnapshot(user.uid, (profileData) => {
       if (profileData) {
         setUserProfile(profileData);
-      } else if(user) {
+      } else if(user) { // Profile doesn't exist, create it
         const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS))
                                 ? INITIAL_PAL_CREDITS
                                 : 0;
@@ -197,13 +201,14 @@ export default function HomePage() {
           xp: 0,
           level: 1,
           palCredits: initialCredits,
-          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default', // Ensure default palColorId
+          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default',
           palPersona: DEFAULT_PERSONA_SETTINGS,
           unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
           lastBountiesGeneratedDate: '',
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
           setUserProfile(initialProfile);
+          showPixelPalMessage(`Welcome to Pixel Due, ${initialProfile.displayName}! Your adventure begins!`, 'greeting');
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
           showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later. Don't worry, your legend begins now!", 'info');
@@ -242,7 +247,7 @@ export default function HomePage() {
         if (task.timerId) clearTimeout(task.timerId);
       });
     };
-  }, [user?.uid, toast]);
+  }, [user?.uid, toast, showPixelPalMessage]); // Added showPixelPalMessage
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -256,14 +261,14 @@ export default function HomePage() {
   const handleAddTask = async (newTaskData: AddTaskFormValues) => {
     if (!user?.uid) return;
 
-    if (!newTaskData.title || newTaskData.duration === undefined || !newTaskData.dueDate) {
+    if (!newTaskData.title || newTaskData.duration === undefined || newTaskData.duration <=0 || !newTaskData.dueDate) {
       toast({
         title: "Missing Info!",
-        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        description: "Quest Title, a positive Duration, and Due Date are all required, champ!",
         variant: "destructive",
         className: "font-pixel pixel-corners",
       });
-      showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding!", 'info');
+      showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding! Duration must be positive too.", 'info');
       return;
     }
     setIsAddingTask(true);
@@ -442,14 +447,14 @@ export default function HomePage() {
   const handleSaveTask = async (updatedTaskData: Task) => {
     if (!user?.uid) return;
 
-    if (!updatedTaskData.title || updatedTaskData.duration === undefined || !updatedTaskData.dueDate) {
+    if (!updatedTaskData.title || updatedTaskData.duration === undefined || updatedTaskData.duration <=0 || !updatedTaskData.dueDate) {
       toast({
         title: "Missing Info!",
-        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        description: "Quest Title, a positive Duration, and Due Date are all required, champ!",
         variant: "destructive",
         className: "font-pixel pixel-corners",
       });
-      showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
+      showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits, and duration must be positive.", 'info');
       return;
     }
     setIsSavingTask(true);
@@ -534,7 +539,7 @@ export default function HomePage() {
         messageTypeSet = true;
       }
       if (newSettings.palPersona) {
-        dataToUpdate.palPersona = { ...currentSafeProfile.palPersona, ...newSettings.palPersona };
+        dataToUpdate.palPersona = { ...(currentSafeProfile.palPersona || DEFAULT_PERSONA_SETTINGS), ...newSettings.palPersona };
          if (!messageTypeSet) { 
             showPixelPalMessage(`Pal's personality sliders tweaked! Let's see this new vibe...`, 'info');
          }
@@ -896,7 +901,7 @@ export default function HomePage() {
             onDeleteTask={handleDeleteTask}
             onStartQuest={handleStartQuest}
           />
-
+          
           <DailyBountyList
             activeBounties={activeDailyBounties}
             completedBounties={completedDailyBounties}
