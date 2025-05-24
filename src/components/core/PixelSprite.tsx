@@ -4,15 +4,13 @@
 import Image from 'next/image';
 import type { UserProfile, PixelPalMessage } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PAL_COLORS } from '@/lib/constants';
+import { PAL_COLORS, TYPING_SPEED_MS } from '@/lib/constants'; // Import TYPING_SPEED_MS
 import { useEffect, useState } from 'react';
 
 interface PixelSpriteProps {
   userProfile: UserProfile | null;
   message: PixelPalMessage | null;
 }
-
-const TYPING_SPEED_MS = 50; // Milliseconds per character
 
 export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
   const [basePalImageUrl, setBasePalImageUrl] = useState('https://placehold.co/128x128/8A2BE2/FFFFFF.png?text=Pal&font=pixel');
@@ -30,21 +28,21 @@ export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
   }, [userProfile?.palColorId]);
 
   useEffect(() => {
-    setTypedMessageText(''); // Reset typed text when the message object itself changes or becomes null
+    setTypedMessageText(''); 
 
     if (message?.text) {
       let index = 0;
       const intervalId = setInterval(() => {
-        setTypedMessageText((prev) => message.text.substring(0, index + 1));
+        setTypedMessageText(message.text.substring(0, index + 1));
         index++;
         if (index === message.text.length) {
           clearInterval(intervalId);
         }
-      }, TYPING_SPEED_MS);
+      }, TYPING_SPEED_MS); // Use constant for typing speed
 
-      return () => clearInterval(intervalId); // Cleanup interval on new message or unmount
+      return () => clearInterval(intervalId);
     }
-  }, [message]); // Depend on the message object itself
+  }, [message]);
 
   return (
     <Card className="pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
@@ -57,7 +55,7 @@ export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
           style={{ imageRendering: 'pixelated' }}
         >
           <Image
-            key={basePalImageUrl}
+            key={basePalImageUrl} 
             src={basePalImageUrl}
             alt="Pixel Pal Base"
             width={128}
@@ -67,7 +65,6 @@ export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
             priority
           />
         </div>
-        {/* Display typed message. Ensure a min-height for the text area. */}
         <div className="w-full p-3 bg-secondary rounded pixel-corners border border-foreground text-sm min-h-[60px] flex items-center justify-center">
           <p className="font-pixel text-secondary-foreground text-center">
             {typedMessageText || (message ? '' : '...')}

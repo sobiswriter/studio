@@ -22,7 +22,6 @@ export const PAL_COLORS: { id: string; name: string; hex: string, dataAiHint: st
   { id: 'forest', name: 'Forest', hex: '#228B22', dataAiHint: 'pixel character green' },
 ];
 
-// INITIAL_UNLOCKED_COSMETICS now only includes Pal colors
 export const INITIAL_UNLOCKED_COSMETICS = PAL_COLORS.map(c => c.id);
 
 export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
@@ -36,9 +35,12 @@ export const BOUNTY_XP_REWARD = 25;
 export const BOUNTY_CREDITS_REWARD = 5;
 export const NUM_DAILY_BOUNTIES = 5;
 
-// Default persona settings
 export const DEFAULT_PERSONA_SETTINGS = {
-  sarcasm: 50,    // Mid-range
-  helpfulness: 75, // Generally helpful
-  chattiness: 60,  // Moderately talkative
+  sarcasm: 50,
+  helpfulness: 75,
+  chattiness: 60,
 };
+
+// For Pixel Pal message typing effect
+export const TYPING_SPEED_MS = 50; // Milliseconds per character
+export const POST_TYPING_PAUSE_MS = 2500; // Milliseconds to pause after typing

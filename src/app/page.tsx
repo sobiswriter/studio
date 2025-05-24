@@ -21,7 +21,13 @@ import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type
 import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentInput, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
 import { generateDailyBounties as generateDailyBountiesFlow } from '@/ai/flows/generate-daily-bounties';
 import type { GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
-import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES, DEFAULT_PERSONA_SETTINGS } from '@/lib/constants';
+import { 
+  XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, 
+  INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, 
+  INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, 
+  ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES,
+  DEFAULT_PERSONA_SETTINGS, TYPING_SPEED_MS, POST_TYPING_PAUSE_MS
+} from '@/lib/constants';
 import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle, Info } from 'lucide-react';
 import Link from 'next/link';
 
@@ -33,9 +39,9 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService'; // Changed to relative path
+} from '../services/firestoreService'; 
 import type { Unsubscribe } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
+import { useAuth } from '../contexts/AuthContext'; 
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
@@ -50,8 +56,14 @@ export default function HomePage() {
   const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
   const [lastCompletedTaskElement, setLastCompletedTaskElement] = useState<HTMLElement | null>(null);
 
+  // For Pixel Pal message display and log
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
+  
+  // For message queuing and timed display
+  const [messageQueue, setMessageQueue] = useState<PixelPalMessage[]>([]);
+  const [isPalDisplaySlotActive, setIsPalDisplaySlotActive] = useState(false);
+  const displayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const [isAskPalModalOpen, setIsAskPalModalOpen] = useState(false);
   const [isLoadingAskPal, setIsLoadingAskPal] = useState(false);
@@ -70,7 +82,42 @@ export default function HomePage() {
       const updatedLog = [newMessage, ...prevLog];
       return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
     });
-    setCurrentPixelPalMessage(newMessage); // Directly update the current message
+    setMessageQueue(prevQueue => [...prevQueue, newMessage]);
+  }, []);
+
+  useEffect(() => {
+    if (!isPalDisplaySlotActive && messageQueue.length > 0) {
+      const nextMessageToShow = messageQueue[0];
+      setCurrentPixelPalMessage(nextMessageToShow);
+      setIsPalDisplaySlotActive(true);
+
+      const displayDuration = (nextMessageToShow.text.length * TYPING_SPEED_MS) + POST_TYPING_PAUSE_MS;
+
+      if (displayTimeoutRef.current) {
+        clearTimeout(displayTimeoutRef.current);
+      }
+
+      displayTimeoutRef.current = setTimeout(() => {
+        setMessageQueue(prevQueue => prevQueue.slice(1));
+        setIsPalDisplaySlotActive(false);
+        // The effect will run again if there are more messages in the queue
+      }, displayDuration);
+    }
+    // Cleanup timeout if component unmounts or if queue becomes empty while a timeout is active
+    return () => {
+      if (displayTimeoutRef.current && (messageQueue.length === 0 || !isPalDisplaySlotActive)) {
+         // clearTimeout(displayTimeoutRef.current); // Potentially clear if queue becomes empty and slot isn't active
+      }
+    };
+  }, [messageQueue, isPalDisplaySlotActive, showPixelPalMessage]);
+
+  // Clear any active timeout on unmount
+   useEffect(() => {
+    return () => {
+      if (displayTimeoutRef.current) {
+        clearTimeout(displayTimeoutRef.current);
+      }
+    };
   }, []);
 
 
@@ -142,11 +189,14 @@ export default function HomePage() {
 
     setIsLoadingProfile(true);
     setIsLoadingTasks(true);
-    showPixelPalMessage("Yo! Ready to crush some quests today? Let's do this!", 'greeting');
+    
 
     const unsubProfile = onUserProfileSnapshot(user.uid, (profileData) => {
       if (profileData) {
         setUserProfile(profileData);
+         if (isLoadingProfile) { // Only show initial greeting once profile loads
+            showPixelPalMessage("Yo! Ready to crush some quests today? Let's do this!", 'greeting');
+        }
       } else {
         const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS)) 
                                 ? INITIAL_PAL_CREDITS 
@@ -205,7 +255,7 @@ export default function HomePage() {
       });
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, toast, showPixelPalMessage]); 
+  }, [user?.uid, toast]); // Removed showPixelPalMessage from deps
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -301,7 +351,10 @@ export default function HomePage() {
     
     let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) 
                              ? userProfile.palCredits 
-                             : (typeof INITIAL_PAL_CREDITS === 'number' ? INITIAL_PAL_CREDITS : 0);
+                             : (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS)) 
+                               ? INITIAL_PAL_CREDITS 
+                               : 0;
+
 
     let creditsGainedOnLevelUp = 0;
     let bonusCreditsEarned = 0;
@@ -665,11 +718,11 @@ export default function HomePage() {
 
 
   useEffect(() => {
-    if (user?.uid) { 
-      const reminderTimer = setTimeout(checkDueTasksAndRemind, 2000); 
+    if (user?.uid && !isLoadingProfile && !isLoadingTasks) { // Ensure data is loaded before reminding
+      const reminderTimer = setTimeout(checkDueTasksAndRemind, 3000); // Increased delay
       return () => clearTimeout(reminderTimer);
     }
-  }, [user?.uid, checkDueTasksAndRemind]); 
+  }, [user?.uid, tasks, isLoadingProfile, isLoadingTasks, checkDueTasksAndRemind]); 
 
 
   if (authLoading) {
@@ -868,8 +921,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-
-    
-
-    
