@@ -1,3 +1,4 @@
+
 export interface Task {
   id: string;
   title: string;
@@ -23,6 +24,7 @@ export interface UserProfile {
   uid: string; // Simulated User ID
   xp: number;
   level: number;
+  palCredits: number; // New: Pal Credits
   pixelSpriteCosmetics: {
     hat: string; // ID of the hat cosmetic item
     accessory: string; // ID of the accessory cosmetic item

@@ -43,3 +43,7 @@ export const INITIAL_UNLOCKED_COSMETICS = [
 ];
 
 export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
+
+export const INITIAL_PAL_CREDITS = 3;
+export const CREDITS_PER_LEVEL_UP = 1;
+export const ASK_PAL_COST = 1;

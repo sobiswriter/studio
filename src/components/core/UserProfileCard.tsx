@@ -4,6 +4,7 @@ import type { UserProfile } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { LEVEL_THRESHOLDS, MAX_LEVEL } from '@/lib/constants';
+import { Sparkles } from 'lucide-react'; // Using Sparkles for credits
 
 interface UserProfileCardProps {
   userProfile: UserProfile | null;
@@ -43,6 +44,10 @@ export function UserProfileCard({ userProfile }: UserProfileCardProps) {
         <div className="font-pixel">
           <p>Level: {userProfile.level}</p>
           <p>XP: {userProfile.xp}</p>
+          <p className="flex items-center">
+            Pal Credits: {userProfile.palCredits} 
+            <Sparkles size={16} className="ml-1 text-yellow-400" />
+          </p>
         </div>
         <div>
           <div className="flex justify-between text-xs font-pixel mb-1">
