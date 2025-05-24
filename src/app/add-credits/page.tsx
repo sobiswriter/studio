@@ -167,12 +167,11 @@ export default function AddCreditsPage() {
           <div className="flex flex-col items-center space-y-2">
             <p className="font-pixel text-sm text-muted-foreground">Scan to support:</p>
             <Image 
-              src="https://placehold.co/200x200.png" 
-              alt="Payment QR Code Placeholder" 
+              src="https://drive.google.com/uc?export=view&id=163Q78W8yXkctKrOggJQ5E5a5SWZ0o6Kc" 
+              alt="Payment QR Code" 
               width={200} 
               height={200}
               className="pixel-corners border-2 border-muted"
-              data-ai-hint="qr code payment"
             />
           </div>
         </CardContent>
@@ -189,6 +188,3 @@ export default function AddCreditsPage() {
     </div>
   );
 }
-
-
-    
