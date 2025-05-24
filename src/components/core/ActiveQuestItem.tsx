@@ -38,16 +38,12 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
       return;
     }
 
-    // Set initial time based on current props when effect runs or task changes
-    // This is crucial if the component re-renders with an already started task.
     setRemainingTime(calculateRemainingTime());
 
     const intervalId = setInterval(() => {
       setRemainingTime(prevTime => {
         if (prevTime <= 1) {
           clearInterval(intervalId);
-          // The actual completion is handled by the setTimeout in page.tsx
-          // This just stops the countdown display.
           return 0;
         }
         return prevTime - 1;
@@ -59,8 +55,6 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
 
 
   if (!task.isStarted || task.isCompleted) {
-    // This component should only render for active, non-completed tasks.
-    // The filtering is primarily done in page.tsx, but this is a safeguard.
     return null;
   }
 
