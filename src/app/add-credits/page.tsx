@@ -6,9 +6,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile } from '../../types';
 import { onUserProfileSnapshot, updateUserProfileData } from '../../services/firestoreService';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import Link from 'next/link';
-import { Coins, ArrowLeft, Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import { Coins, ArrowLeft, Loader2, Gift, Instagram, Linkedin, Github } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -80,8 +81,6 @@ export default function AddCreditsPage() {
     );
   }
   
-  // This check is after authLoading is false. If user is still null, it means they should be redirected by the effect.
-  // But if we reach here and user is null (e.g. effect hasn't run yet or failed silently), show a message.
   if (!user) {
      return (
       <div className="flex items-center justify-center min-h-screen bg-background font-pixel p-4">
@@ -93,7 +92,7 @@ export default function AddCreditsPage() {
     );
   }
 
-  if (isLoadingProfile && user) { // Only show profile loading if user is confirmed
+  if (isLoadingProfile && user) { 
      return (
       <div className="flex items-center justify-center min-h-screen bg-background font-pixel p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -142,6 +141,43 @@ export default function AddCreditsPage() {
         ))}
       </div>
 
+      <Card className="pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
+        <CardHeader>
+          <CardTitle className="font-pixel flex items-center gap-2"><Gift size={24} /> Buy me a Coffee?</CardTitle>
+          <CardDescription className="font-pixel text-muted-foreground">If you enjoy Pixel Due, consider supporting its development!</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="font-pixel text-foreground">
+            Your support helps me keep improving Pixel Due and adding new features. Thank you for being awesome!
+          </p>
+          <div className="space-y-2">
+            <p className="font-pixel text-sm text-muted-foreground">Connect with me:</p>
+            <div className="flex flex-wrap gap-4 items-center">
+              <a href="https://www.instagram.com/sobi_is_a_writer" target="_blank" rel="noopener noreferrer" className="font-pixel text-primary hover:underline flex items-center gap-1">
+                <Instagram size={16} /> @sobi_is_a_writer
+              </a>
+              <a href="https://www.linkedin.com/in/sobiswriter" target="_blank" rel="noopener noreferrer" className="font-pixel text-primary hover:underline flex items-center gap-1">
+                <Linkedin size={16} /> sobiswriter
+              </a>
+              <a href="https://github.com/sobiswriter" target="_blank" rel="noopener noreferrer" className="font-pixel text-primary hover:underline flex items-center gap-1">
+                <Github size={16} /> @sobiswriter
+              </a>
+            </div>
+          </div>
+          <div className="flex flex-col items-center space-y-2">
+            <p className="font-pixel text-sm text-muted-foreground">Scan to support:</p>
+            <Image 
+              src="https://placehold.co/200x200.png" 
+              alt="Payment QR Code Placeholder" 
+              width={200} 
+              height={200}
+              className="pixel-corners border-2 border-muted"
+              data-ai-hint="qr code payment"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <CardFooter className="mt-8 flex justify-center">
         <Link href="/" legacyBehavior>
           <Button variant="outline" className="font-pixel btn-pixel">
@@ -154,3 +190,5 @@ export default function AddCreditsPage() {
   );
 }
 
+
+    
