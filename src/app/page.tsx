@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type CalculateTaskXpOutput } from '@/ai/flows/calculate-task-xp';
 import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentInput, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
 import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
-import { generateQuestStatusComment as generateQuestStatusCommentFlow, type QuestStatusInput } from '@/ai/flows/generate-quest-status-comment'; // New AI Flow
+import { generateQuestStatusComment as generateQuestStatusCommentFlow, type QuestStatusInput } from '@/ai/flows/generate-quest-status-comment';
 import {
   XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL,
   INITIAL_UNLOCKED_COSMETICS, PAL_COLORS,
@@ -45,6 +45,7 @@ import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
+const FIVE_MINUTES_MS = 5 * 60 * 1000; // For periodic status updates
 
 export default function HomePage() {
   const { user, authLoading, logout } = useAuth();
@@ -56,11 +57,9 @@ export default function HomePage() {
   const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
   const [lastCompletedTaskElement, setLastCompletedTaskElement] = useState<HTMLElement | null>(null);
 
-  // For Pixel Pal message display and log
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
-
-  // For message queuing and timed display
+  
   const [messageQueue, setMessageQueue] = useState<PixelPalMessage[]>([]);
   const [isPalDisplaySlotActive, setIsPalDisplaySlotActive] = useState(false);
   const displayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -73,6 +72,7 @@ export default function HomePage() {
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [isGeneratingBounties, setIsGeneratingBounties] = useState(false);
   const [isGeneratingStatusComment, setIsGeneratingStatusComment] = useState(false);
+  const [initialStatusCheckPerformed, setInitialStatusCheckPerformed] = useState(false);
 
 
   const { toast } = useToast();
@@ -105,13 +105,12 @@ export default function HomePage() {
       }, displayDuration);
     }
     return () => {
-      if (displayTimeoutRef.current && (messageQueue.length === 0 || !isPalDisplaySlotActive)) {
-        // clearTimeout(displayTimeoutRef.current);
-      }
+      // No cleanup needed here as timeout is managed per message above
     };
   }, [messageQueue, isPalDisplaySlotActive]);
 
    useEffect(() => {
+    // General cleanup for displayTimeoutRef on unmount
     return () => {
       if (displayTimeoutRef.current) {
         clearTimeout(displayTimeoutRef.current);
@@ -193,10 +192,10 @@ export default function HomePage() {
     const unsubProfile = onUserProfileSnapshot(user.uid, (profileData) => {
       if (profileData) {
         setUserProfile(profileData);
-         if (isLoadingProfile) {
+         if (isLoadingProfile && !userProfile) { // Only greet if profile was previously null
             showPixelPalMessage(`Yo ${profileData.displayName || 'Hero'}! Ready to crush some quests today? Let's do this!`, 'greeting');
         }
-      } else {
+      } else if(user) { // Ensure user object exists before trying to create profile
         const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS))
                                 ? INITIAL_PAL_CREDITS
                                 : 0;
@@ -254,7 +253,7 @@ export default function HomePage() {
       });
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, toast]);
+  }, [user?.uid, toast]); // Removed isLoadingProfile, userProfile from deps as they are set inside
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -705,13 +704,14 @@ export default function HomePage() {
   };
 
   const checkDueTasksAndRemind = useCallback(async () => {
-    if (!user?.uid || isLoadingProfile || isLoadingTasks || !tasks.length || isGeneratingStatusComment) return;
-
-    const today = getTodayString();
-    const dueNonBountyTasks = tasks.filter(task => !task.isBounty && !task.isCompleted && task.dueDate === today);
+    if (!user?.uid || !userProfile || isLoadingProfile || isLoadingTasks || isGeneratingStatusComment) {
+      return;
+    }
 
     setIsGeneratingStatusComment(true);
     try {
+      const today = getTodayString();
+      const dueNonBountyTasks = tasks.filter(task => !task.isBounty && !task.isCompleted && task.dueDate === today);
       let statusInput: QuestStatusInput;
       if (dueNonBountyTasks.length > 0) {
         statusInput = {
@@ -728,7 +728,8 @@ export default function HomePage() {
       showPixelPalMessage(aiResult.comment, statusInput.statusType === 'tasks_due' ? 'reminder' : 'info');
     } catch (error) {
       console.error("Error generating quest status comment:", error);
-      // Fallback to simpler, non-AI messages if the flow fails
+      const today = getTodayString();
+      const dueNonBountyTasks = tasks.filter(task => !task.isBounty && !task.isCompleted && task.dueDate === today);
       if (dueNonBountyTasks.length > 0) {
         showPixelPalMessage(`Heads up! ${dueNonBountyTasks.length} regular quest(s) are due today. You got this!`, 'reminder');
       } else {
@@ -737,16 +738,36 @@ export default function HomePage() {
     } finally {
       setIsGeneratingStatusComment(false);
     }
-  }, [user?.uid, tasks, isLoadingProfile, isLoadingTasks, showPixelPalMessage, isGeneratingStatusComment]);
+  }, [user?.uid, userProfile, tasks, isLoadingProfile, isLoadingTasks, isGeneratingStatusComment, showPixelPalMessage]);
 
-
+  // Effect for initial status check after data load
   useEffect(() => {
-    if (user?.uid && !isLoadingProfile && !isLoadingTasks) {
-      const reminderTimer = setTimeout(checkDueTasksAndRemind, 4000); 
-      return () => clearTimeout(reminderTimer);
-    }
-  }, [user?.uid, tasks, isLoadingProfile, isLoadingTasks, checkDueTasksAndRemind]);
+    if (user?.uid && !isLoadingProfile && !isLoadingTasks && !initialStatusCheckPerformed) {
+      setInitialStatusCheckPerformed(true); 
+      const initialTimer = setTimeout(() => {
+        checkDueTasksAndRemind();
+      }, 7000); // 7 seconds delay
 
+      return () => clearTimeout(initialTimer);
+    }
+  }, [user?.uid, isLoadingProfile, isLoadingTasks, initialStatusCheckPerformed, checkDueTasksAndRemind]);
+
+  // Ref to hold the latest version of checkDueTasksAndRemind for the interval
+  const savedCheckDueTasksAndRemindRef = useRef(checkDueTasksAndRemind);
+  useEffect(() => {
+    savedCheckDueTasksAndRemindRef.current = checkDueTasksAndRemind;
+  }, [checkDueTasksAndRemind]);
+
+  // Effect for periodic 5-minute check
+  useEffect(() => {
+    if (user?.uid && !isLoadingProfile && !isLoadingTasks) { 
+      const intervalId = setInterval(() => {
+        savedCheckDueTasksAndRemindRef.current();
+      }, FIVE_MINUTES_MS);
+      return () => clearInterval(intervalId);
+    }
+  }, [user?.uid, isLoadingProfile, isLoadingTasks]);
+  
 
   if (authLoading) {
     return (
@@ -786,7 +807,6 @@ export default function HomePage() {
   const handleLogout = async () => {
     showPixelPalMessage("Catch ya later, hero! Don't forget to come back and crush more quests!", 'info');
     await logout();
-    // router.push('/login'); // AuthContext handles redirection via onAuthStateChanged
   };
 
   return (
@@ -804,7 +824,7 @@ export default function HomePage() {
               <LogOut size={20} />
             </Button>
           ) : (
-            <div className="w-8 h-8" />
+            <div className="w-8 h-8" /> /* Placeholder for spacing */
           )}
           <h1 className="text-3xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">
             Pixel Due
@@ -821,7 +841,7 @@ export default function HomePage() {
               </Button>
             </Link>
           ) : (
-            <div className="w-8 h-8" />
+            <div className="w-8 h-8" /> /* Placeholder for spacing */
           )}
         </div>
 
