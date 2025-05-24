@@ -3,7 +3,7 @@
 
 import type { Task } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card'; // CardContent removed as it's not used directly, Card itself is used for styling the item
+import { Card } from '@/components/ui/card';
 import { TimerIcon, XCircle } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,7 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
 
   useEffect(() => {
     if (!task.isStarted || task.isCompleted) {
-      setRemainingTime(0); // Ensure timer resets if task status changes externally
+      setRemainingTime(0); 
       return;
     }
 
@@ -60,11 +60,11 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
 
   return (
     <Card className={cn(
-        "flex items-center justify-between p-3 rounded-md border-2 border-accent bg-card transition-all duration-200 pixel-corners shadow-[2px_2px_0px_hsl(var(--accent))] mb-2"
+        "flex items-center justify-between p-3 rounded-md border-2 border-primary bg-card transition-all duration-200 pixel-corners shadow-[2px_2px_0px_hsl(var(--primary))] mb-2"
       )}>
       <div className="flex-grow">
-        <p className="font-pixel text-base text-accent-foreground">{task.title}</p>
-        <div className="flex items-center gap-1 text-sm text-accent-foreground/80 mt-1">
+        <p className="font-pixel text-base text-primary">{task.title}</p>
+        <div className="flex items-center gap-1 text-sm text-primary/90 mt-1">
           <TimerIcon size={16} />
           <span className="font-pixel">{formatTime(remainingTime)}</span>
         </div>

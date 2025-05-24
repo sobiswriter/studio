@@ -256,8 +256,6 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
       
       const newTimerId = setTimeout(() => {
-        // handleToggleComplete will mark as completed, which in turn sets isStarted to false
-        // and clears timerId & startTime.
         handleToggleComplete(taskId, true);
       }, timerDurationMs) as unknown as number;
 
@@ -297,9 +295,9 @@ export default function HomePage() {
           <AddTaskForm onAddTask={handleAddTask} />
 
           {activeQuests.length > 0 && (
-            <Card className="pixel-corners border-2 border-accent shadow-[4px_4px_0px_hsl(var(--accent))]">
+            <Card className="pixel-corners border-2 border-primary shadow-[4px_4px_0px_hsl(var(--primary))]">
               <CardHeader>
-                <CardTitle className="font-pixel flex items-center gap-2 text-accent"><Zap size={20} /> Active Quests</CardTitle>
+                <CardTitle className="font-pixel flex items-center gap-2 text-primary"><Zap size={20} /> Active Quests</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {activeQuests.map(task => (
