@@ -86,7 +86,7 @@ export function TaskList({ tasks, onToggleComplete, onEditTask, onDeleteTask, on
         ) : noAvailableTasksMessage && tasks.length > 0 && tasks.every(t => t.isCompleted) ? (
            <p className="text-center text-muted-foreground font-pixel">All quests completed! Add more to continue.</p>
         ): (
-        <ScrollArea className="h-[300px] pr-3"> {/* Adjust height as needed */}
+        <ScrollArea className="h-[450px] pr-3"> {/* Adjust height as needed */}
           {renderTaskList(dueTodayTasks, "Due Today")}
           {renderTaskList(upcomingTasks, "Upcoming")}
           {renderTaskList(undatedTasks, "No Due Date")}
