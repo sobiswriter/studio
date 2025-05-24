@@ -45,3 +45,4 @@ export const DEFAULT_PERSONA_SETTINGS = {
 export const TYPING_SPEED_MS = 50; // Milliseconds per character
 export const POST_TYPING_PAUSE_MS = 2500; // Milliseconds to pause after typing
 export const INITIAL_AI_WELCOME_DELAY_MS = 3000; // Milliseconds to delay initial AI welcome
+
