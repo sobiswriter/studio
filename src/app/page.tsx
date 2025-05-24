@@ -119,10 +119,13 @@ export default function HomePage() {
     setLastCompletedTaskElement(taskElement);
 
     let taskTitleForMessage = "";
+    let wasTimerSkipped = false; 
 
     const updatedTasks = tasks.map((task) => {
       if (task.id === taskId) {
         taskTitleForMessage = task.title;
+        wasTimerSkipped = task.isStarted && isCompleted && task.timerId !== undefined; // Check if timer was skipped
+
         if (task.isCompleted !== isCompleted) { // Only process if completion status actually changes
             if (isCompleted && userProfile) { // Task marked as complete
                 const newXP = userProfile.xp + XP_PER_TASK;
@@ -155,7 +158,7 @@ export default function HomePage() {
                 setShowCompletionAnimation(true);
             }
         }
-        // Clear timer if task is manually completed while active
+        // Clear timer if task is manually completed (or skipped) while active
         if (task.timerId && isCompleted) {
             clearTimeout(task.timerId);
         }
@@ -173,14 +176,12 @@ export default function HomePage() {
     });
     
     if (isCompleted && taskTitleForMessage) {
-       const completedTask = tasks.find(t => t.id === taskId);
-       // Check if the task *was* started before this completion toggle.
-       // The task object in `tasks` array might be slightly older than `updatedTasks` here.
-       // So, we refer to the original `tasks` array to see its `isStarted` state *before* this toggle.
        const originalTask = tasks.find(t => t.id === taskId);
-       if (originalTask && originalTask.isStarted) { // Message for timer completion
+       if (wasTimerSkipped) {
+            setPixelPalMessage({ text: `Quest "${taskTitleForMessage}" timer skipped! Well done!`, type: 'encouragement', timestamp: Date.now() });
+       } else if (originalTask && originalTask.isStarted) { // Message for timer auto-completion
             setPixelPalMessage({ text: `Quest "${taskTitleForMessage}" auto-completed! Fantastic!`, type: 'encouragement', timestamp: Date.now() });
-       } else { // Message for manual completion
+       } else { // Message for manual completion (not via timer)
             setPixelPalMessage({ text: `Great job on completing "${taskTitleForMessage}"! Keep it up!`, type: 'encouragement', timestamp: Date.now() });
        }
     }
@@ -256,7 +257,8 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
       
       const newTimerId = setTimeout(() => {
-        handleToggleComplete(taskId, true);
+        // The handleToggleComplete function will be called, which handles task completion and message
+        handleToggleComplete(taskId, true); 
       }, timerDurationMs) as unknown as number;
 
       saveTasks(tasks.map(t => 
@@ -281,6 +283,12 @@ export default function HomePage() {
     }
   };
 
+  const handleSkipQuest = (taskId: string) => {
+    // Simply call handleToggleComplete to mark as complete
+    // The message for skipping is handled within handleToggleComplete
+    handleToggleComplete(taskId, true);
+  };
+
   const activeQuests = tasks.filter(task => task.isStarted && !task.isCompleted);
   const availableTasksForList = tasks; 
 
@@ -301,7 +309,12 @@ export default function HomePage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {activeQuests.map(task => (
-                  <ActiveQuestItem key={task.id} task={task} onCancelQuest={handleCancelQuest} />
+                  <ActiveQuestItem 
+                    key={task.id} 
+                    task={task} 
+                    onCancelQuest={handleCancelQuest} 
+                    onSkipQuest={handleSkipQuest} // Pass the new handler
+                  />
                 ))}
               </CardContent>
             </Card>

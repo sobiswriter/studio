@@ -4,13 +4,14 @@
 import type { Task } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { TimerIcon, XCircle } from 'lucide-react';
+import { TimerIcon, XCircle, FastForward } from 'lucide-react'; // Added FastForward
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ActiveQuestItemProps {
   task: Task;
   onCancelQuest: (taskId: string) => void;
+  onSkipQuest: (taskId: string) => void; // New prop
 }
 
 const formatTime = (totalSeconds: number): string => {
@@ -19,7 +20,7 @@ const formatTime = (totalSeconds: number): string => {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
-export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
+export function ActiveQuestItem({ task, onCancelQuest, onSkipQuest }: ActiveQuestItemProps) {
   const calculateRemainingTime = useCallback(() => {
     if (!task.startTime || typeof task.duration !== 'number' || !task.isStarted) {
       return 0;
@@ -38,12 +39,14 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
       return;
     }
 
-    setRemainingTime(calculateRemainingTime());
+    setRemainingTime(calculateRemainingTime()); // Recalculate on relevant task prop changes
 
     const intervalId = setInterval(() => {
       setRemainingTime(prevTime => {
         if (prevTime <= 1) {
           clearInterval(intervalId);
+          // The auto-completion is handled by the timeout in page.tsx
+          // We just stop the local interval here.
           return 0;
         }
         return prevTime - 1;
@@ -69,15 +72,26 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
           <span className="font-pixel">{formatTime(remainingTime)}</span>
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => onCancelQuest(task.id)}
-        className="w-8 h-8 p-1 hover:bg-destructive/20 active:bg-destructive/40"
-        aria-label={`Cancel quest ${task.title}`}
-      >
-        <XCircle size={18} className="text-destructive" />
-      </Button>
+      <div className="flex gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onSkipQuest(task.id)}
+          className="w-8 h-8 p-1 hover:bg-accent/20 active:bg-accent/40"
+          aria-label={`Skip timer for quest ${task.title}`}
+        >
+          <FastForward size={18} className="text-accent" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onCancelQuest(task.id)}
+          className="w-8 h-8 p-1 hover:bg-destructive/20 active:bg-destructive/40"
+          aria-label={`Cancel quest ${task.title}`}
+        >
+          <XCircle size={18} className="text-destructive" />
+        </Button>
+      </div>
     </Card>
   );
 }
