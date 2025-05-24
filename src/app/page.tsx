@@ -22,8 +22,7 @@ import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcastic
 import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
 import { generateQuestStatusComment as generateQuestStatusCommentFlow, type QuestStatusInput } from '@/ai/flows/generate-quest-status-comment';
 import {
-  XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL,
-  INITIAL_UNLOCKED_COSMETICS, PAL_COLORS,
+  LEVEL_THRESHOLDS, MAX_LEVEL,
   INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS,
   ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES,
   DEFAULT_PERSONA_SETTINGS,
@@ -60,8 +59,7 @@ export default function HomePage() {
 
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
-
-  // State for managing the message queue and display slot
+  
   const [messageQueue, setMessageQueue] = useState<PixelPalMessage[]>([]);
   const [isPalDisplaySlotActive, setIsPalDisplaySlotActive] = useState(false);
   const displayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -80,25 +78,32 @@ export default function HomePage() {
   const { toast } = useToast();
 
   const showPixelPalMessage = useCallback((text: string, type: PixelPalMessage['type']) => {
-    const newMessage: PixelPalMessage = { text, type, timestamp: Date.now() };
+    const newMessage: PixelPalMessage = { text: text || "...", type, timestamp: Date.now() }; // Ensure text is non-empty
 
     setPixelPalMessageLog(prevLog => {
       const updatedLog = [newMessage, ...prevLog];
       return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
     });
-    // Add to the queue
     setMessageQueue(prevQueue => [...prevQueue, newMessage]);
   }, []);
 
 
-  // Effect to process the message queue
   useEffect(() => {
     if (!isPalDisplaySlotActive && messageQueue.length > 0) {
       const nextMessageToShow = messageQueue[0];
       setCurrentPixelPalMessage(nextMessageToShow);
       setIsPalDisplaySlotActive(true);
 
-      const displayDuration = (nextMessageToShow.text.length * TYPING_SPEED_MS) + POST_TYPING_PAUSE_MS;
+      const currentTypingSpeed = Number(TYPING_SPEED_MS);
+      const currentPostPause = Number(POST_TYPING_PAUSE_MS);
+
+      let displayDuration;
+      if (nextMessageToShow.text && typeof nextMessageToShow.text === 'string' && currentTypingSpeed > 0 && currentPostPause >= 0) {
+          displayDuration = (nextMessageToShow.text.length * currentTypingSpeed) + currentPostPause;
+      } else {
+          displayDuration = currentPostPause > 0 ? currentPostPause : 2000;
+          console.warn("PixelPal: Using fallback display duration for message:", nextMessageToShow);
+      }
 
       if (displayTimeoutRef.current) {
         clearTimeout(displayTimeoutRef.current);
@@ -115,7 +120,7 @@ export default function HomePage() {
         clearTimeout(displayTimeoutRef.current);
       }
     };
-  }, [messageQueue, isPalDisplaySlotActive]); // TYPING_SPEED_MS and POST_TYPING_PAUSE_MS removed as they are constants
+  }, [messageQueue, isPalDisplaySlotActive]);
 
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
@@ -190,10 +195,9 @@ export default function HomePage() {
     const unsubProfile = onUserProfileSnapshot(user.uid, (profileData) => {
       if (profileData) {
         setUserProfile(profileData);
-      } else if(user) { // Profile doesn't exist, create it
-        const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS))
-                                ? INITIAL_PAL_CREDITS
-                                : 0;
+      } else if(user) { 
+        const initialCredits = Number(INITIAL_PAL_CREDITS) || 0;
+                                
         const initialProfile: UserProfile = {
           uid: user.uid,
           displayName: user.displayName || user.email?.split('@')[0] || 'Pixel Hero',
@@ -208,7 +212,6 @@ export default function HomePage() {
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
           setUserProfile(initialProfile);
-          showPixelPalMessage(`Welcome to Pixel Due, ${initialProfile.displayName}! Your adventure begins!`, 'greeting');
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
           showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later. Don't worry, your legend begins now!", 'info');
@@ -228,7 +231,7 @@ export default function HomePage() {
         isStarted: task.isStarted ?? false,
         startTime: task.startTime,
         timerId: undefined, 
-        xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? XP_PER_TASK),
+        xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? 10), // Default XP if not set
         bountyPalCredits: task.isBounty ? BOUNTY_CREDITS_REWARD : undefined,
       }));
       setTasks(loadedTasks);
@@ -246,8 +249,11 @@ export default function HomePage() {
       tasks.forEach(task => { 
         if (task.timerId) clearTimeout(task.timerId);
       });
+       if (displayTimeoutRef.current) { // Clear display timeout on unmount
+        clearTimeout(displayTimeoutRef.current);
+      }
     };
-  }, [user?.uid, toast, showPixelPalMessage]); // Added showPixelPalMessage
+  }, [user?.uid, toast, showPixelPalMessage]);
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -322,7 +328,7 @@ export default function HomePage() {
     setLastCompletedTaskElement(document.getElementById(`task-${taskId}`));
 
     const taskTitleForMessage = originalTask.title;
-    const completedTaskXp = originalTask.xp ?? XP_PER_TASK;
+    const completedTaskXp = originalTask.xp ?? 10; // Default XP if not set
     const completedBountyCredits = originalTask.isBounty ? (originalTask.bountyPalCredits ?? BOUNTY_CREDITS_REWARD) : 0;
 
 
@@ -341,11 +347,7 @@ export default function HomePage() {
     let leveledUp = false;
     let newLevelForMessage = userProfile.level;
 
-    let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits))
-                             ? userProfile.palCredits
-                             : (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS))
-                               ? INITIAL_PAL_CREDITS
-                               : 0;
+    let currentPalCredits = Number(userProfile.palCredits) || Number(INITIAL_PAL_CREDITS) || 0;
 
 
     let creditsGainedOnLevelUp = 0;
@@ -922,7 +924,11 @@ export default function HomePage() {
 
         <aside className="space-y-6">
           {userProfile && <UserProfileCard userProfile={userProfile} />}
-          <PixelSprite userProfile={userProfile} message={currentPixelPalMessage} />
+          <PixelSprite 
+            userProfile={userProfile} 
+            message={currentPixelPalMessage}
+            key={currentPixelPalMessage?.timestamp || 'pal-sprite'} 
+          />
           <PixelPalLog messages={pixelPalMessageLog} />
           {userProfile && <PalSettingsPanel userProfile={userProfile} onUpdatePalSettings={handleUpdatePalSettings} />}
           <Button
@@ -959,3 +965,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
