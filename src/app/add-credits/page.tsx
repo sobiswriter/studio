@@ -128,7 +128,7 @@ export default function AddCreditsPage() {
               <CardTitle className="text-center text-2xl text-accent">{amount} Credits</CardTitle>
             </CardHeader>
             <CardContent className="text-center">
-              <p className="text-muted-foreground mb-4 h-12">Get {amount} shiny Pal Credits to interact with your Pal and unlock features!</p>
+              <p className="text-muted-foreground mb-4 h-20">Get {amount} shiny Pal Credits to interact with your Pal and unlock features!</p>
               <Button 
                 onClick={() => handlePurchase(amount)} 
                 className="w-full font-pixel btn-pixel"
