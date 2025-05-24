@@ -1,4 +1,5 @@
-export const XP_PER_TASK = 10;
+
+export const XP_PER_TASK = 10; // Default XP, used as fallback if AI calc fails
 
 export const LEVEL_THRESHOLDS = [
   0,    // Level 1
@@ -44,6 +45,7 @@ export const INITIAL_UNLOCKED_COSMETICS = [
 
 export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
 
-export const INITIAL_PAL_CREDITS = 3;
-export const CREDITS_PER_LEVEL_UP = 1;
+export const INITIAL_PAL_CREDITS = 5; // Updated
+export const CREDITS_PER_LEVEL_UP = 20; // Updated
+export const BONUS_CREDITS_PER_5_LEVELS = 25; // New
 export const ASK_PAL_COST = 1;

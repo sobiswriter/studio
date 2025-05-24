@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,14 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { Loader2 } from 'lucide-react'; // Added Loader2
+import { Loader2 } from 'lucide-react';
 
 interface EditTaskModalProps {
   task: Task | null;
   isOpen: boolean;
   onClose: () => void;
-  onSaveTask: (task: Task) => Promise<void>; // Updated to Promise
-  isSaving: boolean; // New prop
+  onSaveTask: (task: Task) => Promise<void>;
+  isSaving: boolean;
 }
 
 export function EditTaskModal({ task, isOpen, onClose, onSaveTask, isSaving }: EditTaskModalProps) {
@@ -32,15 +33,16 @@ export function EditTaskModal({ task, isOpen, onClose, onSaveTask, isSaving }: E
   if (!task) return null;
 
   const handleSubmit = async () => {
-    if (!title.trim() || isSaving) return;
+    // Client-side check, more robust validation in page.tsx
+    if (isSaving || !title.trim() || !duration.trim() || !dueDate.trim()) return;
+
     const updatedTaskData: Task = {
       ...task,
       title,
-      duration: duration ? parseInt(duration, 10) : undefined,
-      dueDate: dueDate || undefined,
+      duration: duration ? parseInt(duration, 10) : undefined, // Will be validated in page.tsx
+      dueDate: dueDate || undefined, // Will be validated in page.tsx
     };
-    await onSaveTask(updatedTaskData); // Await the onSaveTask call
-    // No need to call onClose here if onSaveTask handles it or if it's part of a larger flow in page.tsx
+    await onSaveTask(updatedTaskData);
   };
 
   return (
@@ -59,6 +61,7 @@ export function EditTaskModal({ task, isOpen, onClose, onSaveTask, isSaving }: E
               onChange={(e) => setTitle(e.target.value)}
               className="font-pixel input-pixel"
               disabled={isSaving}
+              required
             />
           </div>
            <div className="grid grid-cols-2 gap-4">
@@ -71,6 +74,8 @@ export function EditTaskModal({ task, isOpen, onClose, onSaveTask, isSaving }: E
                 onChange={(e) => setDuration(e.target.value)}
                  className="font-pixel input-pixel"
                  disabled={isSaving}
+                 required
+                 min="1"
               />
             </div>
             <div>
@@ -82,12 +87,13 @@ export function EditTaskModal({ task, isOpen, onClose, onSaveTask, isSaving }: E
                 onChange={(e) => setDueDate(e.target.value)}
                 className="font-pixel input-pixel"
                 disabled={isSaving}
+                required
               />
             </div>
           </div>
         </div>
         <DialogFooter className="gap-2 sm:justify-start">
-          <Button onClick={handleSubmit} className="font-pixel btn-pixel" disabled={isSaving}>
+          <Button onClick={handleSubmit} className="font-pixel btn-pixel" disabled={isSaving || !title.trim() || !duration.trim() || !dueDate.trim()}>
             {isSaving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -6,11 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Loader2 } from 'lucide-react'; // Added Loader2
+import { PlusCircle, Loader2 } from 'lucide-react';
 
+export interface AddTaskFormValues {
+  title: string;
+  duration?: number; // Kept optional here as form input is string
+  dueDate?: string;   // Kept optional here as form input is string
+}
 interface AddTaskFormProps {
-  onAddTask: (taskData: Omit<Task, 'id' | 'isCompleted' | 'createdAt' | 'xp'>) => Promise<void>; // Updated to Promise
-  isAdding: boolean; // New prop
+  onAddTask: (taskData: AddTaskFormValues) => Promise<void>;
+  isAdding: boolean;
 }
 
 export function AddTaskForm({ onAddTask, isAdding }: AddTaskFormProps) {
@@ -21,17 +27,26 @@ export function AddTaskForm({ onAddTask, isAdding }: AddTaskFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || isAdding) return;
+    // Basic client-side check for empty strings, more robust validation in page.tsx
+    if (isAdding) return;
 
-    await onAddTask({ // Await the onAddTask call
+    // Pass string values for duration and dueDate; page.tsx will parse duration
+    await onAddTask({
       title,
-      duration: duration ? parseInt(duration, 10) : undefined,
+      duration: duration ? parseInt(duration, 10) : undefined, // Or let page.tsx handle parsing
       dueDate: dueDate || undefined,
     });
 
-    setTitle('');
-    setDuration('');
-    setDueDate('');
+    // Clear fields only if onAddTask doesn't throw (or if validation passes in page.tsx)
+    // For now, we assume onAddTask handles success/failure feedback and form clearing if needed.
+    // If handleAddTask in page.tsx shows a toast for validation failure, we might not want to clear.
+    // This behavior can be refined based on how page.tsx handles it.
+    // For simplicity now, let's clear if it's not adding.
+    if(!isAdding) {
+        setTitle('');
+        setDuration('');
+        setDueDate('');
+    }
   };
 
   return (
@@ -48,8 +63,8 @@ export function AddTaskForm({ onAddTask, isAdding }: AddTaskFormProps) {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Study Maths for 50 min"
-              required
+              placeholder="e.g., Conquer Mount TypeScript"
+              required // HTML5 required
               className="font-pixel input-pixel"
               disabled={isAdding}
             />
@@ -63,17 +78,20 @@ export function AddTaskForm({ onAddTask, isAdding }: AddTaskFormProps) {
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 placeholder="e.g., 60"
+                required // HTML5 required
+                min="1" // Optional: ensure duration is positive
                 className="font-pixel input-pixel"
                 disabled={isAdding}
               />
             </div>
             <div>
-              <Label htmlFor="task-due-date" className="font-pixel block mb-1">Due Date (Optional)</Label>
+              <Label htmlFor="task-due-date" className="font-pixel block mb-1">Due Date</Label>
               <Input
                 id="task-due-date"
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
+                required // HTML5 required
                 className="font-pixel input-pixel"
                 disabled={isAdding}
               />

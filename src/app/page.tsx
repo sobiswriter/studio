@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Task, UserProfile, PixelPalMessage } from '@/types';
-import { AddTaskForm } from '@/components/core/AddTaskForm';
+import { AddTaskForm, type AddTaskFormValues } from '@/components/core/AddTaskForm';
 import { TaskList } from '@/components/core/TaskList';
 import { ActiveQuestItem } from '@/components/core/ActiveQuestItem';
 import { PixelSprite } from '@/components/core/PixelSprite';
@@ -13,13 +13,12 @@ import { CosmeticCustomizationPanel } from '@/components/core/CosmeticCustomizat
 import { AnimatedCompletion } from '@/components/core/AnimatedCompletion';
 import { PixelPalLog } from '@/components/core/PixelPalLog';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
-import { suggestTasks as suggestTasksFlow, type SuggestTasksOutput } from '@/ai/flows/suggest-tasks';
 import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type CalculateTaskXpOutput } from '@/ai/flows/calculate-task-xp';
-import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, HATS, ACCESSORIES, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, ASK_PAL_COST } from '@/lib/constants';
-import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sparkles } from 'lucide-react';
+import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
+import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, HATS, ACCESSORIES, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST } from '@/lib/constants';
+import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion } from 'lucide-react';
 import {
   onUserProfileSnapshot,
   createUserProfileInDB,
@@ -45,8 +44,6 @@ export default function HomePage() {
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
 
   const [isLoadingAskPal, setIsLoadingAskPal] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
-  const [showAiSuggestionsModal, setShowAiSuggestionsModal] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isSavingTask, setIsSavingTask] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -69,12 +66,11 @@ export default function HomePage() {
       if (profileData) {
         setUserProfile(profileData);
       } else {
-        // Create initial profile if it doesn't exist
         const initialProfile: UserProfile = {
           uid: SIMULATED_USER_ID,
           xp: 0,
           level: 1,
-          palCredits: INITIAL_PAL_CREDITS, // Initialize Pal Credits
+          palCredits: INITIAL_PAL_CREDITS,
           pixelSpriteCosmetics: {
             hat: HATS.find(h => h.id === 'none')?.id || 'none',
             accessory: ACCESSORIES.find(a => a.id === 'none')?.id || 'none',
@@ -123,23 +119,36 @@ export default function HomePage() {
       });
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPixelPalMessage]); 
+  }, []); 
 
   // --- Task Management ---
-  const handleAddTask = async (newTaskData: Omit<Task, 'id' | 'isCompleted' | 'createdAt' | 'xp' | 'isStarted'>) => {
+  const handleAddTask = async (newTaskData: AddTaskFormValues) => {
+    if (!newTaskData.title || !newTaskData.duration || !newTaskData.dueDate) {
+      toast({
+        title: "Missing Info!",
+        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        variant: "destructive",
+        className: "font-pixel pixel-corners",
+      });
+      showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding!", 'info');
+      return;
+    }
+
     setIsAddingTask(true);
     try {
       showPixelPalMessage(`XP crunchin' for "${newTaskData.title}"... Hold tight!`, 'info');
       const xpInput: CalculateTaskXpInput = {
         taskTitle: newTaskData.title,
-        taskDuration: newTaskData.duration,
+        taskDuration: newTaskData.duration, // duration is now guaranteed by validation
       };
       const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
       const taskXp = xpResult.xp;
       showPixelPalMessage(`XP calculation complete! "${newTaskData.title}" is worth ${taskXp} XP. Sweet!`, 'info');
       
       const newTask: Omit<Task, 'id'> = { 
-        ...newTaskData,
+        title: newTaskData.title,
+        duration: newTaskData.duration,
+        dueDate: newTaskData.dueDate,
         isCompleted: false,
         createdAt: Date.now(),
         isStarted: false,
@@ -154,7 +163,7 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error("Error during task addition or XP calculation:", error);
-      toast({ title: "Add Task Error", description: `Could not process "${newTaskData.title}".`, variant: "destructive", className: "font-pixel pixel-corners" });
+      toast({ title: "Add Task Error", description: `Could not process "${newTaskData.title}". Try again.`, variant: "destructive", className: "font-pixel pixel-corners" });
       showPixelPalMessage(`Hmm, cloud save for "${newTaskData.title}" hiccuped. Try again?`, 'info');
     } finally {
       setIsAddingTask(false);
@@ -163,10 +172,15 @@ export default function HomePage() {
 
   const handleToggleComplete = async (taskId: string, isCompletedParam: boolean) => {
     const originalTask = tasks.find(t => t.id === taskId);
-    if (!originalTask || !userProfile) {
+    if (!userProfile) {
+      showPixelPalMessage("Can't update quests without knowing who the hero is! Profile missing.", 'info');
+      return;
+    }
+     if (!originalTask) {
       showPixelPalMessage("Huh, that quest seems to have vanished. Or maybe it's just shy?", 'info');
       return;
     }
+
 
     setLastCompletedTaskElement(document.getElementById(`task-${taskId}`));
 
@@ -187,13 +201,13 @@ export default function HomePage() {
     let leveledUp = false;
     let newLevelForMessage = userProfile.level;
     let creditsGainedOnLevelUp = 0;
+    let bonusCreditsEarned = 0;
 
     if (isCompletedParam) {
       const newXP = userProfile.xp + completedTaskXp;
       let newLevel = userProfile.level;
       
-      // Ensure palCredits is a number before arithmetic
-      let currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : INITIAL_PAL_CREDITS;
+      let currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0;
       let newPalCredits = currentPalCredits;
       
       const unlockedCosmetics = [...userProfile.unlockedCosmetics];
@@ -203,6 +217,12 @@ export default function HomePage() {
         leveledUp = true;
         newPalCredits += CREDITS_PER_LEVEL_UP;
         creditsGainedOnLevelUp += CREDITS_PER_LEVEL_UP;
+
+        if (newLevel % 5 === 0) {
+          newPalCredits += BONUS_CREDITS_PER_5_LEVELS;
+          bonusCreditsEarned += BONUS_CREDITS_PER_5_LEVELS;
+        }
+        
         const nextHat = HATS.find(h => !unlockedCosmetics.includes(h.id));
         if(nextHat) unlockedCosmetics.push(nextHat.id);
         const nextAccessory = ACCESSORIES.find(a => !unlockedCosmetics.includes(a.id));
@@ -243,13 +263,18 @@ export default function HomePage() {
         }
 
         if (leveledUp) {
+          let levelUpMessage = `Whoa! You blasted to Level ${newLevelForMessage}! Gained ${creditsGainedOnLevelUp} Pal Credit(s)!`;
+          if (bonusCreditsEarned > 0) {
+            levelUpMessage += ` Plus a BONUS of ${bonusCreditsEarned} credits for hitting a milestone! Total: ${creditsGainedOnLevelUp + bonusCreditsEarned} new credits!`;
+          }
+          levelUpMessage += " New cosmetics might be shining for you!";
           toast({
             title: "LEVEL UP!",
-            description: `Whoa! You blasted to Level ${newLevelForMessage}! Gained ${creditsGainedOnLevelUp} Pal Credit(s)! New cosmetics might be shining for you!`,
+            description: levelUpMessage,
             className: "font-pixel pixel-corners border-2 border-primary shadow-[2px_2px_0px_hsl(var(--primary))]",
           });
           setTimeout(() => { 
-             showPixelPalMessage(`LEVEL ${newLevelForMessage}! You're basically a legend now. +${creditsGainedOnLevelUp} Pal Credit(s)! Check for new styles!`, 'encouragement');
+             showPixelPalMessage(`LEVEL ${newLevelForMessage}! You're basically a legend now. Gained ${creditsGainedOnLevelUp + bonusCreditsEarned} Pal Credit(s)! Check for new styles!`, 'encouragement');
           }, 200);
         }
       } else {
@@ -271,6 +296,18 @@ export default function HomePage() {
   };
 
   const handleSaveTask = async (updatedTaskData: Task) => {
+    // Add validation for required fields in edit mode too
+    if (!updatedTaskData.title || !updatedTaskData.duration || !updatedTaskData.dueDate) {
+       toast({
+        title: "Missing Info!",
+        description: "Quest Title, Duration, and Due Date are all required, champ!",
+        variant: "destructive",
+        className: "font-pixel pixel-corners",
+      });
+      showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
+      return; // Do not proceed with saving
+    }
+    
     setIsSavingTask(true);
     try {
         let finalTask = { ...updatedTaskData };
@@ -287,7 +324,7 @@ export default function HomePage() {
             showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
         }
 
-        const { timerId, ...taskToSave } = finalTask; // Ensure timerId is not directly saved
+        const { timerId, ...taskToSave } = finalTask;
         const success = await updateTaskInDB(SIMULATED_USER_ID, taskToSave.id, taskToSave);
         if (success) {
             showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
@@ -297,9 +334,6 @@ export default function HomePage() {
         }
     } catch (error) {
         console.error("Error saving task or recalculating XP:", error);
-        const originalTask = tasks.find(t => t.id === updatedTaskData.id);
-        // Revert to original XP if AI calculation was part of the failure, or keep current if DB update failed
-        updatedTaskData.xp = originalTask?.xp ?? XP_PER_TASK; 
         toast({
             title: "Save Error",
             description: `Could not save changes for "${updatedTaskData.title}".`,
@@ -348,19 +382,17 @@ export default function HomePage() {
       return;
     }
     
-    // Ensure palCredits is a number before comparison and arithmetic
     const currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0;
 
     if (currentPalCredits < ASK_PAL_COST) {
       showPixelPalMessage(`Whoops! You need ${ASK_PAL_COST} Pal Credit(s) to ask me something. Level up or complete tough quests!`, 'info');
-      toast({ title: "Not Enough Pal Credits!", description: "Complete more quests or level up to earn credits.", className: "font-pixel pixel-corners" });
+      toast({ title: "Not Enough Pal Credits!", description: `Complete more quests or level up to earn credits. Cost: ${ASK_PAL_COST}`, className: "font-pixel pixel-corners" });
       return;
     }
 
     setIsLoadingAskPal(true);
-    showPixelPalMessage("Alright, spending 1 Pal Credit... Let's see what wisdom I can share!", 'info');
+    showPixelPalMessage(`Alright, spending ${ASK_PAL_COST} Pal Credit(s)... Let's see what wisdom I can share (or not)!`, 'info');
 
-    // Deduct credit first
     const newCredits = currentPalCredits - ASK_PAL_COST;
     const creditUpdateSuccess = await updateUserProfileData(SIMULATED_USER_ID, { palCredits: newCredits });
 
@@ -370,41 +402,27 @@ export default function HomePage() {
       setIsLoadingAskPal(false);
       return;
     }
-    // UserProfile state will update via onSnapshot, reflecting the deducted credit.
 
     try {
-      // For now, still suggests tasks. This will be replaced by a new, more general AI flow later.
-      const result: SuggestTasksOutput = await suggestTasksFlow({}); 
-      setAiSuggestions(result.suggestedTasks);
-      if (result.suggestedTasks.length > 0) {
-        setShowAiSuggestionsModal(true);
-        showPixelPalMessage("Aha! My AI brainwaves conjured up these quest ideas for you!", 'suggestion');
+      const result: PalSarcasticCommentOutput = await getPalSarcasticCommentFlow({}); 
+      if (result.comment) {
+        showPixelPalMessage(result.comment, 'suggestion'); // Using 'suggestion' type for Pal's direct speech
       } else {
-        showPixelPalMessage("My suggestion circuits are a bit quiet today. You've got everything covered, or I'm just drawing a blank!", 'info');
-         toast({
-            title: "No Suggestions",
-            description: "Pixel Pal couldn't find any new task suggestions right now.",
-            className: "font-pixel pixel-corners",
-          });
+        showPixelPalMessage("My joke generator seems to be on vacation. Ask me later!", 'info');
       }
     } catch (error) {
-      console.error("Error asking Pal (fetching suggestions):", error);
+      console.error("Error asking Pal (fetching sarcastic comment):", error);
       showPixelPalMessage("My AI brain just short-circuited! Maybe ask again when I've had my oil changed?", 'info');
       toast({
         title: "AI Error",
-        description: "Could not fetch insights from Pixel Pal.",
+        description: "Could not get a comment from Pixel Pal.",
         variant: "destructive",
         className: "font-pixel pixel-corners",
       });
-      // Note: No automatic credit refund on AI error for simplicity in this step.
-      // This could be added later if desired, but would require careful state management.
+      // Consider refunding credit on AI error in a future iteration if desired
     } finally {
       setIsLoadingAskPal(false);
     }
-  };
-
-  const handleAddSuggestedTask = async (title: string) => {
-    await handleAddTask({ title, duration: 30 }); 
   };
 
   const handleStartQuest = async (taskId: string) => {
@@ -413,11 +431,9 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
       
       const newTimerId = setTimeout(() => {
-        // No need to setTasks here, handleToggleComplete will trigger snapshot update
         handleToggleComplete(taskId, true); 
       }, timerDurationMs) as unknown as number;
 
-      // Optimistically update local state for immediate UI feedback
       setTasks(prevTasks => prevTasks.map(t => 
         t.id === taskId 
           ? { ...t, isStarted: true, startTime: Date.now(), timerId: newTimerId } 
@@ -444,7 +460,6 @@ export default function HomePage() {
     const taskToCancel = tasks.find(t => t.id === taskId);
     if (taskToCancel && taskToCancel.timerId) {
       clearTimeout(taskToCancel.timerId);
-      // Optimistically update local state
       setTasks(prevTasks => prevTasks.map(t => 
         t.id === taskId 
           ? { ...t, isStarted: false, timerId: undefined, startTime: undefined } 
@@ -454,9 +469,8 @@ export default function HomePage() {
       if (success) {
         showPixelPalMessage(`Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, 'info');
       } else {
-        // Revert local state if DB update fails - though onSnapshot might also correct this
         setTasks(prevTasks => prevTasks.map(t => 
-            t.id === taskId && taskToCancel.startTime // Ensure original startTime existed
+            t.id === taskId && taskToCancel.startTime 
             ? { ...t, isStarted: true, timerId: taskToCancel.timerId, startTime: taskToCancel.startTime } 
             : t
         ));
@@ -549,7 +563,7 @@ export default function HomePage() {
             className="w-full font-pixel btn-pixel flex items-center justify-center gap-2"
           >
             {isLoadingAskPal ? <Loader2 size={18} className="animate-spin" /> : <MessageCircleQuestion size={18} />}
-            {isLoadingAskPal ? "Pal is thinking..." : `Ask your Pal (${(userProfile && typeof userProfile.palCredits === 'number') ? userProfile.palCredits : 0} Credits)`}
+            {isLoadingAskPal ? "Pal is conjuring..." : `Ask your Pal (${(userProfile && typeof userProfile.palCredits === 'number') ? userProfile.palCredits : 0} Credits)`}
           </Button>
         </aside>
       </main>
@@ -568,43 +582,7 @@ export default function HomePage() {
         targetElement={lastCompletedTaskElement}
       />
 
-      <Dialog open={showAiSuggestionsModal} onOpenChange={setShowAiSuggestionsModal}>
-        <DialogContent className="font-pixel pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
-          <DialogHeader>
-            <DialogTitle className="font-pixel flex items-center gap-2"><Award size={20}/> Pixel Pal Suggests!</DialogTitle>
-            <DialogDescription className="font-pixel text-muted-foreground">
-              Here are some quests my AI brain cooked up for you (cost 1 Pal Credit):
-            </DialogDescription>
-          </DialogHeader>
-          <ul className="list-disc list-inside space-y-2 py-2 font-pixel">
-            {aiSuggestions.map((suggestion, index) => (
-              <li key={index}>{suggestion}</li>
-            ))}
-          </ul>
-           <Button 
-            onClick={async () => {
-                for (const title of aiSuggestions) {
-                  await handleAddSuggestedTask(title);
-                }
-                setShowAiSuggestionsModal(false);
-                toast({title: "Suggestions Added!", description: "Pixel Pal's suggested quests are now in your list. Go get 'em!", className: "font-pixel pixel-corners"});
-                showPixelPalMessage("All suggested quests added to your list. You're unstoppable!", 'info');
-            }}
-            className="w-full font-pixel btn-pixel mt-4"
-            disabled={aiSuggestions.length === 0 || isAddingTask}
-            >
-            {isAddingTask && aiSuggestions.length > 0 ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Adding All...
-                </>
-              ) : (
-                "Add All to My Quests"
-              )}
-          </Button>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog for AI task suggestions removed as "Ask Pal" now gives direct comments */}
     </div>
   );
 }
-
