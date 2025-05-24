@@ -21,7 +21,7 @@ import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type
 import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentInput, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
 import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesInput, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
 import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES, DEFAULT_PERSONA_SETTINGS } from '@/lib/constants';
-import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle } from 'lucide-react';
+import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle, Info } from 'lucide-react'; // Added Info
 import Link from 'next/link';
 
 import {
@@ -819,10 +819,19 @@ export default function HomePage() {
             onToggleComplete={handleToggleComplete}
             isLoading={isGeneratingBounties}
           />
+          
+          <div className="flex justify-center mt-6">
+             <Link href="/about" legacyBehavior>
+                <Button variant="outline" className="font-pixel btn-pixel flex items-center gap-2">
+                  <Info size={18} /> Wanna know more about us
+                </Button>
+              </Link>
+          </div>
+
         </section>
 
         <aside className="space-y-6">
-          {userProfile && <UserProfileCard userProfile={userProfile} />}
+          {userProfile && <UserProfileCard userProfile={userProfile} onLogout={handleLogout} />}
           <PixelSprite userProfile={userProfile} message={currentPixelPalMessage} />
           <PixelPalLog messages={pixelPalMessageLog} />
           {userProfile && <PalSettingsPanel userProfile={userProfile} onUpdatePalSettings={handleUpdatePalSettings} />}
