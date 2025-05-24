@@ -5,6 +5,9 @@ export interface Task {
   isCompleted: boolean;
   createdAt: number; // Timestamp
   dueDate?: string; // YYYY-MM-DD format for simplicity
+  isStarted?: boolean; // True if the timer for this task is active
+  startTime?: number; // Timestamp of when the task was started
+  timerId?: number; // ID of the setTimeout for the timer
 }
 
 export interface CosmeticItem {

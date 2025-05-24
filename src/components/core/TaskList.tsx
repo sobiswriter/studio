@@ -11,15 +11,19 @@ interface TaskListProps {
   onToggleComplete: (taskId: string, isCompleted: boolean) => void;
   onEditTask: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
+  onStartQuest: (taskId: string) => void;
 }
 
-export function TaskList({ tasks, onToggleComplete, onEditTask, onDeleteTask }: TaskListProps) {
+export function TaskList({ tasks, onToggleComplete, onEditTask, onDeleteTask, onStartQuest }: TaskListProps) {
   const today = new Date().toISOString().split('T')[0];
   
-  const dueTodayTasks = tasks.filter(task => !task.isCompleted && task.dueDate === today);
-  const upcomingTasks = tasks.filter(task => !task.isCompleted && task.dueDate && task.dueDate > today).sort((a,b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-  const undatedTasks = tasks.filter(task => !task.isCompleted && !task.dueDate);
-  const completedTasks = tasks.filter(task => task.isCompleted).sort((a,b) => b.createdAt - a.createdAt);
+  // Filter out tasks that are started and not completed, as they'll be in the ActiveQuests section
+  const availableTasks = tasks.filter(task => !task.isStarted || task.isCompleted);
+
+  const dueTodayTasks = availableTasks.filter(task => !task.isCompleted && task.dueDate === today);
+  const upcomingTasks = availableTasks.filter(task => !task.isCompleted && task.dueDate && task.dueDate > today).sort((a,b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+  const undatedTasks = availableTasks.filter(task => !task.isCompleted && !task.dueDate);
+  const completedTasks = availableTasks.filter(task => task.isCompleted).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
 
 
   const renderTaskList = (taskList: Task[], title: string) => (
@@ -34,6 +38,7 @@ export function TaskList({ tasks, onToggleComplete, onEditTask, onDeleteTask }: 
               onToggleComplete={onToggleComplete}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
+              onStartQuest={onStartQuest}
             />
           ))}
         </div>
@@ -41,7 +46,20 @@ export function TaskList({ tasks, onToggleComplete, onEditTask, onDeleteTask }: 
     )
   );
 
-  if (tasks.length === 0) {
+  if (availableTasks.length === 0 && tasks.some(t => t.isStarted && !t.isCompleted)) {
+     return (
+      <Card className="pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
+        <CardHeader>
+          <CardTitle className="font-pixel flex items-center gap-2"><ListChecks size={20}/> Your Quests</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-muted-foreground font-pixel">All available quests are active or completed. Check your Active Quests!</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (tasks.length === 0) { // This handles the case where there are absolutely no tasks (neither active nor available)
     return (
       <Card className="pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
         <CardHeader>
@@ -53,19 +71,28 @@ export function TaskList({ tasks, onToggleComplete, onEditTask, onDeleteTask }: 
       </Card>
     );
   }
+  
+  const noAvailableTasksMessage = !dueTodayTasks.length && !upcomingTasks.length && !undatedTasks.length && !completedTasks.length;
+
 
   return (
     <Card className="pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
       <CardHeader>
-        <CardTitle className="font-pixel flex items-center gap-2"><ListChecks size={24}/> Your Quests</CardTitle>
+        <CardTitle className="font-pixel flex items-center gap-2"><ListChecks size={24}/> Your Available Quests</CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[400px] pr-3"> {/* Adjust height as needed */}
+        {noAvailableTasksMessage && tasks.some(t => t.isStarted && !t.isCompleted) ? (
+           <p className="text-center text-muted-foreground font-pixel">All available quests are active or completed. Check your Active Quests!</p>
+        ) : noAvailableTasksMessage && tasks.length > 0 && tasks.every(t => t.isCompleted) ? (
+           <p className="text-center text-muted-foreground font-pixel">All quests completed! Add more to continue.</p>
+        ): (
+        <ScrollArea className="h-[300px] pr-3"> {/* Adjust height as needed */}
           {renderTaskList(dueTodayTasks, "Due Today")}
           {renderTaskList(upcomingTasks, "Upcoming")}
           {renderTaskList(undatedTasks, "No Due Date")}
           {renderTaskList(completedTasks, "Completed")}
         </ScrollArea>
+        )}
       </CardContent>
     </Card>
   );
