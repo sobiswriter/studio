@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning={true}> {/* Recommended to add to html tag as well for extensions modifying it */}
+    <html lang="en" suppressHydrationWarning={true}>
       <body className={`${pressStart2P.variable} font-sans antialiased`} suppressHydrationWarning={true}> {/* Use variable and fallback */}
         {children}
         <Toaster /> {/* Add Toaster for notifications */}
