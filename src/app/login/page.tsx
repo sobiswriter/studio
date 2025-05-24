@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react'; // Added useEffect
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,16 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2, LogIn, Chrome } from 'lucide-react'; // Added Chrome for Google icon
+import { Loader2, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const { login, loginWithGoogle, user, authLoading } = useAuth();
+  const { login, user, authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -39,25 +38,6 @@ export default function LoginPage() {
       console.error("Login error:", err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setError(null);
-    setIsGoogleLoading(true);
-    try {
-      await loginWithGoogle();
-      router.push('/'); // Redirect on successful Google sign-in
-    } catch (err: any) {
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
-        setError('Google Sign-In popup was blocked, cancelled, or closed. Please check your browser settings (disable popup blockers for this site) and try again.');
-        console.error("Google Sign-in popup issue:", err);
-      } else {
-        setError(err.message || 'Failed to sign in with Google. Please try again.');
-        console.error("Google Sign-in error:", err);
-      }
-    } finally {
-      setIsGoogleLoading(false);
     }
   };
   
@@ -89,7 +69,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 required
                 className="font-pixel input-pixel"
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -102,31 +82,14 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 required
                 className="font-pixel input-pixel"
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading}
               />
             </div>
-            <Button type="submit" className="w-full font-pixel btn-pixel" disabled={isLoading || isGoogleLoading}>
+            <Button type="submit" className="w-full font-pixel btn-pixel" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn size={18} />}
               {isLoading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground font-pixel">Or continue with</span>
-            </div>
-          </div>
-          <Button 
-            variant="outline" 
-            className="w-full font-pixel btn-pixel" 
-            onClick={handleGoogleSignIn}
-            disabled={isLoading || isGoogleLoading}
-          >
-            {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome size={18} />}
-            {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
-          </Button>
         </CardContent>
         <CardFooter className="text-center block">
           <p className="text-sm text-muted-foreground font-pixel">

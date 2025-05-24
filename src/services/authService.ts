@@ -1,11 +1,8 @@
 
 import {
-  getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  GoogleAuthProvider,
-  signInWithPopup,
   type UserCredential,
   type User as FirebaseUser // Alias to avoid confusion with other User types
 } from 'firebase/auth';
@@ -45,17 +42,5 @@ export const logoutUser = async (): Promise<void> => {
   } catch (error: any) {
     console.error("Error logging out:", error.message);
     throw new Error(error.message || 'Logout failed.');
-  }
-};
-
-export const signInWithGooglePopup = async (): Promise<FirebaseUser> => {
-  const provider = new GoogleAuthProvider();
-  try {
-    const userCredential: UserCredential = await signInWithPopup(auth, provider);
-    return userCredential.user;
-  } catch (error: any) {
-    console.error("Error signing in with Google:", error.message);
-    // Handle specific errors like 'auth/popup-closed-by-user' if needed
-    throw new Error(error.message || 'Google Sign-in failed. Please try again.');
   }
 };

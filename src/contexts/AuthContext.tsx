@@ -8,7 +8,6 @@ import {
   loginWithEmail,
   signupWithEmail,
   logoutUser,
-  signInWithGooglePopup,
   type LoginCredentials,
   type SignupCredentials
 } from '../services/authService'; // Relative path
@@ -19,7 +18,6 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<FirebaseUser>;
   signup: (credentials: SignupCredentials) => Promise<FirebaseUser>;
   logout: () => Promise<void>;
-  loginWithGoogle: () => Promise<FirebaseUser>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,13 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // setUser(null); // Managed by onAuthStateChanged
   };
 
-  const loginWithGoogle = async (): Promise<FirebaseUser> => {
-    const firebaseUser = await signInWithGooglePopup();
-    // setUser(firebaseUser); // Managed by onAuthStateChanged
-    return firebaseUser;
-  };
-
-  const value = { user, authLoading, login, signup, logout, loginWithGoogle };
+  const value = { user, authLoading, login, signup, logout };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

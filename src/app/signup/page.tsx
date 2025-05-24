@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react'; // Added useEffect
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2, UserPlus, Chrome } from 'lucide-react';
+import { Loader2, UserPlus } from 'lucide-react';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -17,9 +17,8 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const { signup, loginWithGoogle, user, authLoading } = useAuth();
+  const { signup, user, authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -45,25 +44,6 @@ export default function SignupPage() {
       console.error("Signup error:", err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setError(null);
-    setIsGoogleLoading(true);
-    try {
-      await loginWithGoogle();
-      router.push('/'); // Redirect on successful Google sign-in
-    } catch (err: any) {
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
-        setError('Google Sign-Up popup was blocked, cancelled, or closed. Please check your browser settings (disable popup blockers for this site) and try again.');
-        console.error("Google Sign-up popup issue:", err);
-      } else {
-        setError(err.message || 'Failed to sign up with Google. Please try again.');
-        console.error("Google Sign-up error:", err);
-      }
-    } finally {
-      setIsGoogleLoading(false);
     }
   };
 
@@ -95,7 +75,7 @@ export default function SignupPage() {
                 placeholder="you@example.com"
                 required
                 className="font-pixel input-pixel"
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -109,7 +89,7 @@ export default function SignupPage() {
                 required
                 minLength={6}
                 className="font-pixel input-pixel"
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -122,31 +102,14 @@ export default function SignupPage() {
                 placeholder="Re-enter your password"
                 required
                 className="font-pixel input-pixel"
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading}
               />
             </div>
-            <Button type="submit" className="w-full font-pixel btn-pixel" disabled={isLoading || isGoogleLoading}>
+            <Button type="submit" className="w-full font-pixel btn-pixel" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus size={18} />}
               {isLoading ? 'Creating Account...' : 'Sign Up'}
             </Button>
           </form>
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground font-pixel">Or sign up with</span>
-            </div>
-          </div>
-           <Button 
-            variant="outline" 
-            className="w-full font-pixel btn-pixel" 
-            onClick={handleGoogleSignIn}
-            disabled={isLoading || isGoogleLoading}
-          >
-            {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome size={18} />}
-            {isGoogleLoading ? 'Processing...' : 'Sign up with Google'}
-          </Button>
         </CardContent>
         <CardFooter className="text-center block">
           <p className="text-sm text-muted-foreground font-pixel">
