@@ -21,13 +21,13 @@ import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, H
 import { Award, Lightbulb, Zap, Loader2, CloudCog } from 'lucide-react';
 import {
   onUserProfileSnapshot,
-  createUserProfile as createUserProfileInDB,
+  createUserProfileInDB,
   updateUserProfileData,
   onTasksSnapshot,
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '@/services/firestoreService';
+} from '../services/firestoreService'; // Changed to relative path
 import type { Unsubscribe } from 'firebase/firestore';
 
 const SIMULATED_USER_ID = 'simulated-user-123';
@@ -110,7 +110,9 @@ export default function HomePage() {
         if (task.timerId) clearTimeout(task.timerId);
       });
     };
-  }, [tasks]); // Rerun if tasks change to clear old timers
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Removed `tasks` from dependency array to avoid re-running listeners unnecessarily
+          // Tasks state will be updated by onSnapshot, not by adding 'tasks' here.
 
   // --- Task Management ---
   const handleAddTask = async (newTaskData: Omit<Task, 'id' | 'isCompleted' | 'createdAt' | 'xp' | 'isStarted'>) => {
@@ -126,26 +128,15 @@ export default function HomePage() {
       const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
       taskXp = xpResult.xp;
       setPixelPalMessage({ text: `XP calculation complete! "${newTaskData.title}" is worth ${taskXp} XP. Sweet!`, type: 'info', timestamp: Date.now() });
-    } catch (error) {
-      console.error("Error calculating task XP:", error);
-      toast({
-        title: "XP Calculation Error",
-        description: `Could not calculate XP for "${newTaskData.title}". Using default ${XP_PER_TASK} XP.`,
-        variant: "destructive",
-        className: "font-pixel pixel-corners",
-      });
-      setPixelPalMessage({ text: `Math is hard sometimes... Had trouble with XP for "${newTaskData.title}". Defaulting it to ${XP_PER_TASK} XP!`, type: 'info', timestamp: Date.now() });
-    }
+      
+      const newTask: Omit<Task, 'id'> = { // Firestore generates ID
+        ...newTaskData,
+        isCompleted: false,
+        createdAt: Date.now(),
+        isStarted: false,
+        xp: taskXp,
+      };
 
-    const newTask: Omit<Task, 'id'> = { // Firestore generates ID
-      ...newTaskData,
-      isCompleted: false,
-      createdAt: Date.now(),
-      isStarted: false,
-      xp: taskXp,
-    };
-
-    try {
       const addedTask = await addTaskToDB(SIMULATED_USER_ID, newTask);
       if (addedTask) {
         // UI will update via onSnapshot listener
@@ -154,9 +145,9 @@ export default function HomePage() {
         throw new Error("Task not added to DB");
       }
     } catch (error) {
-      console.error("Error adding task to DB:", error);
-      toast({ title: "Save Error", description: `Could not save "${newTask.title}" to Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
-      setPixelPalMessage({ text: `Hmm, cloud save for "${newTask.title}" hiccuped. Try again?`, type: 'info', timestamp: Date.now() });
+      console.error("Error during task addition or XP calculation:", error);
+      toast({ title: "Add Task Error", description: `Could not process "${newTaskData.title}". Default XP might be used if added.`, variant: "destructive", className: "font-pixel pixel-corners" });
+      setPixelPalMessage({ text: `Hmm, cloud save for "${newTaskData.title}" hiccuped. Try again?`, type: 'info', timestamp: Date.now() });
     } finally {
       setIsAddingTask(false);
     }
@@ -181,9 +172,8 @@ export default function HomePage() {
     
     const taskUpdateData: Partial<Task> = {
       isCompleted: isCompletedParam,
-      isStarted: isCompletedParam ? false : originalTask.isStarted, // If completing, it's no longer started
-      startTime: isCompletedParam ? undefined : originalTask.startTime, // Clear startTime if completing
-      // timerId is client-side, not stored in DB in this manner
+      isStarted: isCompletedParam ? false : originalTask.isStarted, 
+      startTime: isCompletedParam ? undefined : originalTask.startTime, 
     };
 
     let profileUpdateData: Partial<UserProfile> | null = null;
@@ -218,20 +208,19 @@ export default function HomePage() {
         let messageType: PixelPalMessage['type'] = 'encouragement';
 
         const wasActive = originalTask.isStarted === true;
-        const wasSkippedManually = wasActive && originalTask.timerId !== undefined; // Timer was active and this action completes it.
 
-        if (wasSkippedManually && originalTask.startTime && typeof originalTask.duration === 'number') {
+        if (wasActive && originalTask.startTime && typeof originalTask.duration === 'number') {
           const elapsedTimeMs = Date.now() - originalTask.startTime;
           const totalDurationMs = originalTask.duration * 60 * 1000;
-          if (elapsedTimeMs < totalDurationMs * 0.25) { // Skipped early
+          if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined) { // Skipped early AND timer was active (timerId indicates it was manually skipped by user action, not auto-completed)
             messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info';
-          } else { // Skipped but not "too" early
+          } else if (originalTask.timerId !== undefined) { // Skipped, but not "too" early OR timer was active and this action completes it.
             messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
+          } else if (originalTask.timerId === undefined) { 
+             // This case indicates it was likely auto-completed by its timer (timerId would be cleared by page.tsx's setTimeout before calling this)
+            messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
           }
-        } else if (wasActive && !originalTask.timerId && typeof originalTask.duration === 'number') { 
-          // This case indicates it was likely auto-completed by its timer (timerId would be cleared by page.tsx's setTimeout before calling this)
-          messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
         }
         setPixelPalMessage({ text: messageText, type: messageType, timestamp: Date.now() });
         
@@ -245,12 +234,11 @@ export default function HomePage() {
             description: `Whoa! You blasted to Level ${newLevelForMessage}! New cosmetics might be shining for you!`,
             className: "font-pixel pixel-corners border-2 border-primary shadow-[2px_2px_0px_hsl(var(--primary))]",
           });
-          setTimeout(() => { // Delayed Pal message for level up
+          setTimeout(() => { 
              setPixelPalMessage({ text: `LEVEL ${newLevelForMessage}! You're basically a legend now. Check for new styles!`, type: 'encouragement', timestamp: Date.now() });
           }, 200);
         }
       } else {
-         // Task marked as incomplete
          setPixelPalMessage({ text: `Quest "${taskTitleForMessage}" is back on the list. No worries!`, type: 'info', timestamp: Date.now() });
       }
     } else {
@@ -273,45 +261,38 @@ export default function HomePage() {
     let finalTask = { ...updatedTaskData };
     const originalTask = tasks.find(t => t.id === updatedTaskData.id);
 
-    if (originalTask && (originalTask.title !== updatedTaskData.title || originalTask.duration !== updatedTaskData.duration)) {
-      try {
-        setPixelPalMessage({ text: `Recalculating XP for "${updatedTaskData.title}"... one sec!`, type: 'info', timestamp: Date.now() });
-        const xpInput: CalculateTaskXpInput = {
-          taskTitle: updatedTaskData.title,
-          taskDuration: updatedTaskData.duration,
-        };
-        const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
-        finalTask.xp = xpResult.xp;
-        setPixelPalMessage({ text: `XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, type: 'info', timestamp: Date.now() });
-      } catch (error) {
-        console.error("Error recalculating task XP:", error);
-        finalTask.xp = originalTask.xp ?? XP_PER_TASK;
-        toast({
-          title: "XP Recalculation Error",
-          description: `Could not update XP for "${updatedTaskData.title}". Keeping previous XP.`,
-          variant: "destructive",
-          className: "font-pixel pixel-corners",
-        });
-        setPixelPalMessage({ text: `My XP calculator is on the fritz for "${updatedTaskData.title}". Kept the old XP value!`, type: 'info', timestamp: Date.now() });
-      }
-    }
-
     try {
-      // Don't save client-side timerId to DB
-      const { timerId, ...taskToSave } = finalTask;
-      const success = await updateTaskInDB(SIMULATED_USER_ID, taskToSave.id, taskToSave);
-      if (success) {
-        setPixelPalMessage({ text: `Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, type: 'info', timestamp: Date.now() });
-        setEditingTask(null);
-      } else {
-        throw new Error("DB Update Failed");
-      }
+        if (originalTask && (originalTask.title !== updatedTaskData.title || originalTask.duration !== updatedTaskData.duration)) {
+            setPixelPalMessage({ text: `Recalculating XP for "${updatedTaskData.title}"... one sec!`, type: 'info', timestamp: Date.now() });
+            const xpInput: CalculateTaskXpInput = {
+            taskTitle: updatedTaskData.title,
+            taskDuration: updatedTaskData.duration,
+            };
+            const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
+            finalTask.xp = xpResult.xp;
+            setPixelPalMessage({ text: `XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, type: 'info', timestamp: Date.now() });
+        }
+
+        const { timerId, ...taskToSave } = finalTask;
+        const success = await updateTaskInDB(SIMULATED_USER_ID, taskToSave.id, taskToSave);
+        if (success) {
+            setPixelPalMessage({ text: `Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, type: 'info', timestamp: Date.now() });
+            setEditingTask(null); 
+        } else {
+            throw new Error("DB Update Failed");
+        }
     } catch (error) {
-      console.error("Error saving task to DB:", error);
-      toast({ title: "Save Error", description: `Could not save changes for "${finalTask.title}" to Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
-      setPixelPalMessage({ text: `Cloud save for "${finalTask.title}" edits failed. Changes might be local only.`, type: 'info', timestamp: Date.now() });
+        console.error("Error saving task or recalculating XP:", error);
+        finalTask.xp = originalTask?.xp ?? XP_PER_TASK; // Fallback XP
+        toast({
+            title: "Save Error",
+            description: `Could not save changes for "${finalTask.title}". Previous XP might be kept if edit failed during XP calc.`,
+            variant: "destructive",
+            className: "font-pixel pixel-corners",
+        });
+        setPixelPalMessage({ text: `Cloud save for "${finalTask.title}" edits failed. Changes might be local only.`, type: 'info', timestamp: Date.now() });
     } finally {
-      setIsSavingTask(false);
+        setIsSavingTask(false);
     }
   };
 
@@ -323,7 +304,6 @@ export default function HomePage() {
       }
       try {
         await deleteTaskFromDB(SIMULATED_USER_ID, taskId);
-        // UI updates via onSnapshot
         setPixelPalMessage({ text: `Quest "${taskToDelete.title}" zapped from the records! Poof!`, type: 'info', timestamp: Date.now() });
         toast({ title: "Quest Deleted", description: `"${taskToDelete.title}" has been removed.`, className: "font-pixel pixel-corners" });
       } catch (error) {
@@ -378,7 +358,8 @@ export default function HomePage() {
   };
 
   const handleAddSuggestedTask = async (title: string) => {
-    await handleAddTask({ title, duration: 30 });
+    // This will trigger the usual handleAddTask flow, including XP calculation
+    await handleAddTask({ title, duration: 30 }); // Assuming a default duration for suggested tasks
   };
 
   const handleStartQuest = async (taskId: string) => {
@@ -387,24 +368,20 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
       
       const newTimerId = setTimeout(() => {
-        // Remove client-side timerId from local state before calling toggleComplete
         setTasks(prevTasks => prevTasks.map(t => t.id === taskId ? {...t, timerId: undefined} : t));
         handleToggleComplete(taskId, true); 
       }, timerDurationMs) as unknown as number;
 
-      // Update local state first for immediate UI feedback of timerId
       setTasks(prevTasks => prevTasks.map(t => 
         t.id === taskId 
           ? { ...t, isStarted: true, startTime: Date.now(), timerId: newTimerId } 
           : t
       ));
       
-      // Then update Firestore (without timerId)
       const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: true, startTime: Date.now() });
       if (success) {
         setPixelPalMessage({ text: `Timer started for "${taskToStart.title}"! Go get 'em, tiger!`, type: 'info', timestamp: Date.now() });
       } else {
-        // Revert local state if DB fails (or rely on onSnapshot)
          setTasks(prevTasks => prevTasks.map(t => 
             t.id === taskId 
             ? { ...t, isStarted: false, startTime: undefined, timerId: undefined } 
@@ -421,20 +398,17 @@ export default function HomePage() {
     const taskToCancel = tasks.find(t => t.id === taskId);
     if (taskToCancel && taskToCancel.timerId) {
       clearTimeout(taskToCancel.timerId);
-      // Update local state first
       setTasks(prevTasks => prevTasks.map(t => 
         t.id === taskId 
           ? { ...t, isStarted: false, timerId: undefined, startTime: undefined } 
           : t
       ));
-      // Then update Firestore
       const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: false, startTime: undefined });
       if (success) {
         setPixelPalMessage({ text: `Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, type: 'info', timestamp: Date.now() });
       } else {
-        // Revert local state or rely on onSnapshot
-        setTasks(prevTasks => prevTasks.map(t => // This revert might conflict with onSnapshot if not careful
-            t.id === taskId && taskToCancel.startTime // ensure original values are used for revert
+        setTasks(prevTasks => prevTasks.map(t => 
+            t.id === taskId && taskToCancel.startTime
             ? { ...t, isStarted: true, timerId: taskToCancel.timerId, startTime: taskToCancel.startTime } 
             : t
         ));
@@ -444,7 +418,6 @@ export default function HomePage() {
   };
 
   const handleSkipQuest = (taskId: string) => {
-    // The main logic and sarcastic message for early skip is handled in handleToggleComplete
     handleToggleComplete(taskId, true);
   };
 
@@ -462,7 +435,7 @@ export default function HomePage() {
   }, [tasks, isLoadingProfile, isLoadingTasks]);
 
   useEffect(() => {
-    const reminderTimer = setTimeout(checkDueTasksAndRemind, 2000); // Check after initial load
+    const reminderTimer = setTimeout(checkDueTasksAndRemind, 2000); 
     return () => clearTimeout(reminderTimer);
   }, [checkDueTasksAndRemind]);
 
@@ -586,3 +559,4 @@ export default function HomePage() {
   );
 }
 
+    
