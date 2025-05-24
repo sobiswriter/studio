@@ -11,7 +11,7 @@ const pressStart2P = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: 'Task Sprite Quest', // Updated App Name
+  title: 'Pixel Due', // Updated App Name
   description: 'Gamified task management with a pixel art AI companion.', // Updated Description
 };
 
@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning={true}>
-      <body className={`${pressStart2P.variable} font-sans antialiased`} suppressHydrationWarning={true}> {/* Use variable and fallback */}
+      <body className={`${pressStart2P.variable} font-sans antialiased`} suppressHydrationWarning={true}>
         {children}
         <Toaster /> {/* Add Toaster for notifications */}
       </body>
