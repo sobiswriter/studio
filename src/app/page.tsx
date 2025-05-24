@@ -145,10 +145,9 @@ export default function HomePage() {
       if (profileData) {
         setUserProfile(profileData);
       } else {
-        // Ensure initialPalCredits is a number
         const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS)) 
                                 ? INITIAL_PAL_CREDITS 
-                                : 0; // Default to 0 if undefined or NaN
+                                : 0; 
         const initialProfile: UserProfile = {
           uid: user.uid,
           email: user.email || undefined,
@@ -536,7 +535,7 @@ export default function HomePage() {
       setIsLoadingAskPal(false);
       return;
     }
-    // Optimistically update local state, Firestore snapshot will confirm
+    
     setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null);
 
     try {
@@ -690,39 +689,78 @@ export default function HomePage() {
   const activeDailyBounties = tasks.filter(task => task.isBounty && task.bountyGenerationDate === todayString && !task.isCompleted && !task.isStarted);
   const completedDailyBounties = tasks.filter(task => task.isBounty && task.bountyGenerationDate === todayString && task.isCompleted);
 
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
+
   return (
     <div className="container mx-auto p-4 space-y-6 md:space-y-8 max-w-5xl">
-      <header className="relative text-center py-8">
-        {user && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
+      <header className="relative py-4 text-center">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between px-4 md:hidden">
+          {user ? (
             <Button
-              onClick={async () => {
-                await logout();
-                router.push('/login');
-              }}
+              onClick={handleLogout}
               variant="outline"
-              className="font-pixel btn-pixel flex items-center gap-2"
+              size="icon"
+              className="p-1.5 btn-pixel border-foreground"
               title="Logout"
             >
-              <LogOut size={18} />
-              Logout
+              <LogOut size={20} />
             </Button>
-          </div>
-        )}
-        <h1 className="text-4xl md:text-5xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">Pixel Due</h1>
-        {user && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10">
+          ) : (
+            <div className="w-8 h-8" /> /* Placeholder for balance */
+          )}
+          <h1 className="text-3xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">
+            Pixel Due
+          </h1>
+          {user ? (
             <Link href="/add-credits" legacyBehavior>
               <Button
                 variant="outline"
-                className="font-pixel btn-pixel flex items-center gap-2"
+                size="icon"
+                className="p-1.5 btn-pixel border-foreground"
                 title="Add Pal Credits"
               >
-                <PlusCircle size={18} />
-                Add Credits
+                <PlusCircle size={20} />
               </Button>
             </Link>
-          </div>
+          ) : (
+            <div className="w-8 h-8" /> /* Placeholder for balance */
+          )}
+        </div>
+
+        {/* Desktop Header */}
+        <h1 className="hidden md:block text-4xl lg:text-5xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">
+          Pixel Due
+        </h1>
+        {user && (
+          <>
+            <div className="hidden md:block absolute left-4 top-1/2 -translate-y-1/2 z-10">
+              <Button
+                onClick={handleLogout}
+                variant="outline"
+                className="font-pixel btn-pixel flex items-center gap-2"
+                title="Logout"
+              >
+                <LogOut size={18} />
+                Logout
+              </Button>
+            </div>
+            <div className="hidden md:block absolute right-4 top-1/2 -translate-y-1/2 z-10">
+              <Link href="/add-credits" legacyBehavior>
+                <Button
+                  variant="outline"
+                  className="font-pixel btn-pixel flex items-center gap-2"
+                  title="Add Pal Credits"
+                >
+                  <PlusCircle size={18} />
+                  Add Credits
+                </Button>
+              </Link>
+            </div>
+          </>
         )}
       </header>
 
@@ -747,7 +785,7 @@ export default function HomePage() {
               </CardContent>
             </Card>
           )}
-
+          
           <TaskList
             tasks={availableTasksForList} 
             onToggleComplete={handleToggleComplete}
@@ -755,7 +793,7 @@ export default function HomePage() {
             onDeleteTask={handleDeleteTask}
             onStartQuest={handleStartQuest}
           />
-          
+
           <DailyBountyList
             activeBounties={activeDailyBounties}
             completedBounties={completedDailyBounties}
@@ -804,5 +842,6 @@ export default function HomePage() {
     </div>
   );
 }
+    
 
     
