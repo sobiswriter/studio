@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -148,8 +149,6 @@ export default function HomePage() {
                     className: "font-pixel pixel-corners border-2 border-primary shadow-[2px_2px_0px_hsl(var(--primary))]",
                 });
                 setPixelPalMessage({ text: `Woohoo! Level ${newLevel}! You're awesome!`, type: 'encouragement', timestamp: Date.now() });
-                } else {
-                  // Message set by caller (timer end or manual completion)
                 }
                 
                 updateUserProfile({ xp: newXP, level: newLevel, unlockedCosmetics });
@@ -160,14 +159,26 @@ export default function HomePage() {
         if (task.timerId && isCompleted) {
             clearTimeout(task.timerId);
         }
-        return { ...task, isCompleted, isStarted: isCompleted ? false : task.isStarted, timerId: isCompleted ? undefined : task.timerId, startTime: isCompleted ? undefined : task.startTime };
+        // When a task is completed (isCompleted: true), it should no longer be started.
+        // Its timerId and startTime should also be cleared.
+        return { 
+          ...task, 
+          isCompleted, 
+          isStarted: isCompleted ? false : task.isStarted, 
+          timerId: isCompleted ? undefined : task.timerId, 
+          startTime: isCompleted ? undefined : task.startTime 
+        };
       }
       return task;
     });
     
     if (isCompleted && taskTitleForMessage) {
        const completedTask = tasks.find(t => t.id === taskId);
-       if (completedTask && completedTask.isStarted) { // Message for timer completion
+       // Check if the task *was* started before this completion toggle.
+       // The task object in `tasks` array might be slightly older than `updatedTasks` here.
+       // So, we refer to the original `tasks` array to see its `isStarted` state *before* this toggle.
+       const originalTask = tasks.find(t => t.id === taskId);
+       if (originalTask && originalTask.isStarted) { // Message for timer completion
             setPixelPalMessage({ text: `Quest "${taskTitleForMessage}" auto-completed! Fantastic!`, type: 'encouragement', timestamp: Date.now() });
        } else { // Message for manual completion
             setPixelPalMessage({ text: `Great job on completing "${taskTitleForMessage}"! Keep it up!`, type: 'encouragement', timestamp: Date.now() });
@@ -244,20 +255,15 @@ export default function HomePage() {
     if (taskToStart && taskToStart.duration && !taskToStart.isCompleted && !taskToStart.isStarted) {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
       
-      const timerId = setTimeout(() => {
+      const newTimerId = setTimeout(() => {
+        // handleToggleComplete will mark as completed, which in turn sets isStarted to false
+        // and clears timerId & startTime.
         handleToggleComplete(taskId, true);
-        // Additional state cleanup for the task that just finished its timer
-        setTasks(prevTasks => prevTasks.map(t => {
-          if (t.id === taskId) {
-            return { ...t, isStarted: false, timerId: undefined, startTime: undefined };
-          }
-          return t;
-        }));
-      }, timerDurationMs) as unknown as number; // Cast to number for browser setTimeout
+      }, timerDurationMs) as unknown as number;
 
       saveTasks(tasks.map(t => 
         t.id === taskId 
-          ? { ...t, isStarted: true, startTime: Date.now(), timerId: timerId } 
+          ? { ...t, isStarted: true, startTime: Date.now(), timerId: newTimerId } 
           : t
       ));
       setPixelPalMessage({ text: `Quest "${taskToStart.title}" has begun! Good luck!`, type: 'info', timestamp: Date.now() });
@@ -278,7 +284,7 @@ export default function HomePage() {
   };
 
   const activeQuests = tasks.filter(task => task.isStarted && !task.isCompleted);
-  const availableTasksForList = tasks; // TaskList will do its own internal filtering based on isStarted
+  const availableTasksForList = tasks; 
 
   return (
     <div className="container mx-auto p-4 space-y-6 md:space-y-8 max-w-5xl">
@@ -355,7 +361,7 @@ export default function HomePage() {
           </ul>
            <Button 
             onClick={() => {
-                aiSuggestions.forEach(title => handleAddTask({ title })); // Assuming duration/dueDate are optional
+                aiSuggestions.forEach(title => handleAddTask({ title, duration: 30 })); // Default duration for suggested tasks
                 setShowAiSuggestionsModal(false);
                 toast({title: "Suggestions Added!", description: "Pixel Pal's suggested quests are now in your list.", className: "font-pixel pixel-corners"});
             }}

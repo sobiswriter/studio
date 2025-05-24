@@ -1,10 +1,11 @@
+
 "use client";
 
 import type { Task } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card'; // CardContent removed as it's not used directly, Card itself is used for styling the item
 import { TimerIcon, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ActiveQuestItemProps {
@@ -19,23 +20,26 @@ const formatTime = (totalSeconds: number): string => {
 };
 
 export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
-  const calculateRemainingTime = () => {
-    if (!task.startTime || typeof task.duration !== 'number') return 0;
+  const calculateRemainingTime = useCallback(() => {
+    if (!task.startTime || typeof task.duration !== 'number' || !task.isStarted) {
+      return 0;
+    }
     const elapsedMilliseconds = Date.now() - task.startTime;
     const totalDurationMilliseconds = task.duration * 60 * 1000;
     const remaining = Math.max(0, totalDurationMilliseconds - elapsedMilliseconds);
     return Math.round(remaining / 1000); // Remaining time in seconds
-  };
+  }, [task.startTime, task.duration, task.isStarted]);
 
-  const [remainingTime, setRemainingTime] = useState(calculateRemainingTime());
+  const [remainingTime, setRemainingTime] = useState(() => calculateRemainingTime());
 
   useEffect(() => {
     if (!task.isStarted || task.isCompleted) {
-      setRemainingTime(0);
+      setRemainingTime(0); // Ensure timer resets if task status changes externally
       return;
     }
 
-    // Recalculate initial remaining time in case of component re-mount or prop change
+    // Set initial time based on current props when effect runs or task changes
+    // This is crucial if the component re-renders with an already started task.
     setRemainingTime(calculateRemainingTime());
 
     const intervalId = setInterval(() => {
@@ -43,6 +47,7 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
         if (prevTime <= 1) {
           clearInterval(intervalId);
           // The actual completion is handled by the setTimeout in page.tsx
+          // This just stops the countdown display.
           return 0;
         }
         return prevTime - 1;
@@ -50,10 +55,14 @@ export function ActiveQuestItem({ task, onCancelQuest }: ActiveQuestItemProps) {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [task.id, task.isStarted, task.isCompleted, task.startTime, task.duration]);
+  }, [task.id, task.isStarted, task.isCompleted, task.startTime, task.duration, calculateRemainingTime]);
 
 
-  if (!task.isStarted || task.isCompleted) return null;
+  if (!task.isStarted || task.isCompleted) {
+    // This component should only render for active, non-completed tasks.
+    // The filtering is primarily done in page.tsx, but this is a safeguard.
+    return null;
+  }
 
   return (
     <Card className={cn(
