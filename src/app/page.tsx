@@ -191,7 +191,11 @@ export default function HomePage() {
     if (isCompletedParam) {
       const newXP = userProfile.xp + completedTaskXp;
       let newLevel = userProfile.level;
-      let newPalCredits = userProfile.palCredits;
+      
+      // Ensure palCredits is a number before arithmetic
+      let currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : INITIAL_PAL_CREDITS;
+      let newPalCredits = currentPalCredits;
+      
       const unlockedCosmetics = [...userProfile.unlockedCosmetics];
 
       while (newLevel < MAX_LEVEL && newXP >= LEVEL_THRESHOLDS[newLevel]) {
@@ -338,13 +342,16 @@ export default function HomePage() {
     }
   };
 
-  const askPalAction = async () => { // Renamed from fetchAiSuggestions
+  const askPalAction = async () => { 
     if (!userProfile) {
       showPixelPalMessage("My circuits are offline! Can't access your profile to use credits.", 'info');
       return;
     }
+    
+    // Ensure palCredits is a number before comparison and arithmetic
+    const currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0;
 
-    if (userProfile.palCredits < ASK_PAL_COST) {
+    if (currentPalCredits < ASK_PAL_COST) {
       showPixelPalMessage(`Whoops! You need ${ASK_PAL_COST} Pal Credit(s) to ask me something. Level up or complete tough quests!`, 'info');
       toast({ title: "Not Enough Pal Credits!", description: "Complete more quests or level up to earn credits.", className: "font-pixel pixel-corners" });
       return;
@@ -354,7 +361,7 @@ export default function HomePage() {
     showPixelPalMessage("Alright, spending 1 Pal Credit... Let's see what wisdom I can share!", 'info');
 
     // Deduct credit first
-    const newCredits = userProfile.palCredits - ASK_PAL_COST;
+    const newCredits = currentPalCredits - ASK_PAL_COST;
     const creditUpdateSuccess = await updateUserProfileData(SIMULATED_USER_ID, { palCredits: newCredits });
 
     if (!creditUpdateSuccess) {
@@ -538,11 +545,11 @@ export default function HomePage() {
           {userProfile && <CosmeticCustomizationPanel userProfile={userProfile} onUpdateCosmetics={handleUpdateCosmetics} />}
            <Button 
             onClick={askPalAction} 
-            disabled={isLoadingAskPal || !userProfile || userProfile.palCredits < ASK_PAL_COST}
+            disabled={isLoadingAskPal || !userProfile || (typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0) < ASK_PAL_COST}
             className="w-full font-pixel btn-pixel flex items-center justify-center gap-2"
           >
             {isLoadingAskPal ? <Loader2 size={18} className="animate-spin" /> : <MessageCircleQuestion size={18} />}
-            {isLoadingAskPal ? "Pal is thinking..." : `Ask your Pal (${userProfile?.palCredits || 0} Credits)`}
+            {isLoadingAskPal ? "Pal is thinking..." : `Ask your Pal (${(userProfile && typeof userProfile.palCredits === 'number') ? userProfile.palCredits : 0} Credits)`}
           </Button>
         </aside>
       </main>
