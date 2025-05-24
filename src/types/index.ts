@@ -24,7 +24,7 @@ export interface UserProfile {
   uid: string; // Simulated User ID
   xp: number;
   level: number;
-  palCredits: number; // New: Pal Credits
+  palCredits: number;
   pixelSpriteCosmetics: {
     hat: string; // ID of the hat cosmetic item
     accessory: string; // ID of the accessory cosmetic item
@@ -35,6 +35,6 @@ export interface UserProfile {
 
 export interface PixelPalMessage {
   text: string;
-  type: 'greeting' | 'encouragement' | 'reminder' | 'suggestion' | 'info';
+  type: 'greeting' | 'encouragement' | 'reminder' | 'suggestion' | 'info' | 'askPalResponse'; // Added 'askPalResponse'
   timestamp: number;
 }

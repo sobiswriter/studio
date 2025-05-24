@@ -9,7 +9,7 @@ import { ActiveQuestItem } from '@/components/core/ActiveQuestItem';
 import { PixelSprite } from '@/components/core/PixelSprite';
 import { UserProfileCard } from '@/components/core/UserProfileCard';
 import { EditTaskModal } from '@/components/core/EditTaskModal';
-import { AskPalModal } from '@/components/core/AskPalModal'; // Import the new modal
+import { AskPalModal } from '@/components/core/AskPalModal';
 import { CosmeticCustomizationPanel } from '@/components/core/CosmeticCustomizationPanel';
 import { AnimatedCompletion } from '@/components/core/AnimatedCompletion';
 import { PixelPalLog } from '@/components/core/PixelPalLog';
@@ -32,7 +32,7 @@ import {
 import type { Unsubscribe } from 'firebase/firestore';
 
 const SIMULATED_USER_ID = 'simulated-user-123';
-const MAX_LOG_ENTRIES = 20;
+const MAX_LOG_ENTRIES = 20; // Applies to each log section if separated, or total if combined
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -44,7 +44,7 @@ export default function HomePage() {
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
 
-  const [isAskPalModalOpen, setIsAskPalModalOpen] = useState(false); // State for the new modal
+  const [isAskPalModalOpen, setIsAskPalModalOpen] = useState(false);
   const [isLoadingAskPal, setIsLoadingAskPal] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isSavingTask, setIsSavingTask] = useState(false);
@@ -56,7 +56,7 @@ export default function HomePage() {
   const showPixelPalMessage = useCallback((text: string, type: PixelPalMessage['type']) => {
     const newMessage: PixelPalMessage = { text, type, timestamp: Date.now() };
     setCurrentPixelPalMessage(newMessage);
-    setPixelPalMessageLog(prevLog => [newMessage, ...prevLog].slice(0, MAX_LOG_ENTRIES));
+    setPixelPalMessageLog(prevLog => [newMessage, ...prevLog].slice(0, MAX_LOG_ENTRIES * 2)); // Increase total capacity if log is split
   }, []);
 
 
@@ -196,6 +196,7 @@ export default function HomePage() {
       isCompleted: isCompletedParam,
       isStarted: isCompletedParam ? false : originalTask.isStarted,
       startTime: isCompletedParam ? undefined : originalTask.startTime,
+      timerId: undefined, // Always clear timerId from DB if completing/uncompleting
     };
 
     let profileUpdateData: Partial<UserProfile> | null = null;
@@ -205,13 +206,14 @@ export default function HomePage() {
     let bonusCreditsEarned = 0;
 
     if (isCompletedParam) {
-      const newXP = userProfile.xp + completedTaskXp;
+      const currentSafeXP = userProfile.xp ?? 0;
+      const newXP = currentSafeXP + completedTaskXp;
       let newLevel = userProfile.level;
 
       let currentPalCredits = userProfile.palCredits ?? INITIAL_PAL_CREDITS;
       let newPalCredits = currentPalCredits;
 
-      const unlockedCosmetics = [...userProfile.unlockedCosmetics];
+      const unlockedCosmetics = [...(userProfile.unlockedCosmetics || INITIAL_UNLOCKED_COSMETICS)];
 
       while (newLevel < MAX_LEVEL && newXP >= LEVEL_THRESHOLDS[newLevel]) {
         newLevel++;
@@ -251,9 +253,9 @@ export default function HomePage() {
           if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined) {
             messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info';
-          } else if (originalTask.timerId !== undefined) {
+          } else if (originalTask.timerId !== undefined) { // Skipped by user
             messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
-          } else if (originalTask.timerId === undefined) {
+          } else if (originalTask.timerId === undefined) { // Auto-completed by timer
             messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
           }
         }
@@ -297,7 +299,7 @@ export default function HomePage() {
   };
 
   const handleSaveTask = async (updatedTaskData: Task) => {
-    if (!updatedTaskData.title || !updatedTaskData.duration || !updatedTaskData.dueDate) {
+     if (!updatedTaskData.title || !updatedTaskData.duration || !updatedTaskData.dueDate) {
       toast({
         title: "Missing Info!",
         description: "Quest Title, Duration, and Due Date are all required, champ!",
@@ -307,7 +309,6 @@ export default function HomePage() {
       showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
       return;
     }
-
     setIsSavingTask(true);
     try {
       let finalTask = { ...updatedTaskData };
@@ -324,7 +325,7 @@ export default function HomePage() {
         showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
       }
 
-      const { timerId, ...taskToSave } = finalTask;
+      const { timerId, ...taskToSave } = finalTask; // Ensure timerId is not directly saved to DB
       const success = await updateTaskInDB(SIMULATED_USER_ID, taskToSave.id, taskToSave);
       if (success) {
         showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
@@ -405,7 +406,8 @@ export default function HomePage() {
     }
 
     setIsLoadingAskPal(true);
-    showPixelPalMessage(`Alright, spending ${ASK_PAL_COST} Pal Credit(s)... Let's see what wisdom (or sass) I can share!`, 'info');
+    showPixelPalMessage(`You asked: "${userQuery}"... Hmm, let me ponder that for a nanosecond!`, 'info');
+
 
     const newCredits = currentPalCredits - ASK_PAL_COST;
     const creditUpdateSuccess = await updateUserProfileData(SIMULATED_USER_ID, { palCredits: newCredits });
@@ -422,7 +424,7 @@ export default function HomePage() {
       const aiInput: PalSarcasticCommentInput = { userQuery };
       const result: PalSarcasticCommentOutput = await getPalSarcasticCommentFlow(aiInput);
       if (result.comment) {
-        showPixelPalMessage(result.comment, 'suggestion');
+        showPixelPalMessage(result.comment, 'askPalResponse'); // Use new type
       } else {
         showPixelPalMessage("My joke generator seems to be on vacation. Ask me later!", 'info');
       }
@@ -448,6 +450,10 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
 
       const newTimerId = setTimeout(() => {
+        // Remove timerId from local state first to prevent race condition
+        setTasks(prevTasks => prevTasks.map(t =>
+            t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t // Mark as not started before completing
+        ));
         handleToggleComplete(taskId, true);
       }, timerDurationMs) as unknown as number;
 
@@ -482,7 +488,7 @@ export default function HomePage() {
           ? { ...t, isStarted: false, timerId: undefined, startTime: undefined }
           : t
       ));
-      const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: false, startTime: undefined });
+      const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: false, startTime: undefined, timerId: undefined });
       if (success) {
         showPixelPalMessage(`Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, 'info');
       } else {
@@ -497,6 +503,14 @@ export default function HomePage() {
   };
 
   const handleSkipQuest = (taskId: string) => {
+    const taskToSkip = tasks.find(t => t.id === taskId);
+     if (taskToSkip && taskToSkip.timerId) {
+      clearTimeout(taskToSkip.timerId);
+    }
+    // Update local state immediately to stop timer and then toggle complete
+    setTasks(prevTasks => prevTasks.map(t =>
+        t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t
+    ));
     handleToggleComplete(taskId, true);
   };
 
