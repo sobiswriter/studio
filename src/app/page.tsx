@@ -222,6 +222,7 @@ export default function HomePage() {
           className: "font-pixel pixel-corners",
         });
         showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding!", 'info');
+        setIsAddingTask(false); // Reset loading state here
         return;
       }
 
@@ -299,7 +300,7 @@ export default function HomePage() {
       const currentSafeXP = userProfile.xp ?? 0;
       const newXP = currentSafeXP + completedTaskXp;
       let newLevel = userProfile.level;
-      let currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : INITIAL_PAL_CREDITS;
+      let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) ? userProfile.palCredits : INITIAL_PAL_CREDITS;
       let newPalCredits = currentPalCredits + completedBountyCredits; 
 
       const unlockedCosmetics = [...(userProfile.unlockedCosmetics || INITIAL_UNLOCKED_COSMETICS)];
@@ -409,6 +410,7 @@ export default function HomePage() {
           className: "font-pixel pixel-corners",
         });
         showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
+        setIsSavingTask(false); // Reset loading state here
         return;
       }
 
@@ -489,9 +491,9 @@ export default function HomePage() {
       showPixelPalMessage("My circuits are offline! Can't access your profile to use credits.", 'info');
       return;
     }
-    const currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0;
+    const currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) ? userProfile.palCredits : 0;
     if (currentPalCredits < ASK_PAL_COST) {
-      showPixelPalMessage(`Whoops! You need ${ASK_PAL_COST} Pal Credit(s) to ask me something. Level up or complete bounties/tough quests!`, 'info');
+      showPixelPalMessage(`Whoops! You need ${ASK_PAL_COST} Pal Credit(s) to ask me something. Level up or complete bounties!`, 'info');
       toast({ title: "Not Enough Pal Credits!", description: `Complete more quests or level up to earn credits. Cost: ${ASK_PAL_COST}`, className: "font-pixel pixel-corners" });
       return;
     }
@@ -504,7 +506,7 @@ export default function HomePage() {
       setIsAskPalModalOpen(false);
       return;
     }
-    let currentPalCredits = typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0;
+    let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) ? userProfile.palCredits : 0;
 
     if (currentPalCredits < ASK_PAL_COST) {
       showPixelPalMessage(`Not enough credits! You need ${ASK_PAL_COST}, but only have ${currentPalCredits}. Time to quest!`, 'info');
@@ -526,7 +528,7 @@ export default function HomePage() {
       setIsLoadingAskPal(false);
       return;
     }
-    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null);
+    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null); // Optimistic update
 
     try {
       const aiInput: PalSarcasticCommentInput = { userQuery }; 
@@ -718,7 +720,7 @@ export default function HomePage() {
           <DailyBountyList
             activeBounties={activeDailyBounties}
             completedBounties={completedDailyBounties}
-            onStartQuest={onStartQuest}
+            onStartQuest={handleStartQuest}
             onToggleComplete={handleToggleComplete}
             isLoading={isGeneratingBounties}
           />
