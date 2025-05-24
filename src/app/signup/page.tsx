@@ -55,9 +55,9 @@ export default function SignupPage() {
       await loginWithGoogle();
       router.push('/'); // Redirect on successful Google sign-in
     } catch (err: any) {
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
-        setError('Google Sign-Up popup was blocked or cancelled. Please check your browser settings (disable popup blockers for this site) and try again.');
-        console.error("Google Sign-up popup blocked or cancelled:", err);
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
+        setError('Google Sign-Up popup was blocked, cancelled, or closed. Please check your browser settings (disable popup blockers for this site) and try again.');
+        console.error("Google Sign-up popup issue:", err);
       } else {
         setError(err.message || 'Failed to sign up with Google. Please try again.');
         console.error("Google Sign-up error:", err);
