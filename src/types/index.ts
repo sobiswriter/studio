@@ -18,10 +18,11 @@ export interface Task {
 export interface UserProfile {
   uid: string;
   displayName?: string; // User's preferred display name
+  email?: string; // User's email (optional, mainly for reference)
   xp: number;
   level: number;
   palCredits: number;
-  palColorId: string; // ID of the Pal's base color
+  palColorId: string; // ID of the Pal's base color/sprite
   palPersona: {
     sarcasm: number; // e.g., 0-100
     helpfulness: number; // e.g., 0-100

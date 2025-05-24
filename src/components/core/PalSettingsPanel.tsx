@@ -19,7 +19,7 @@ interface PalSettingsPanelProps {
 export function PalSettingsPanel({ userProfile, onUpdatePalSettings }: PalSettingsPanelProps) {
   if (!userProfile) return null;
 
-  const currentPalColorId = userProfile.palColorId || PAL_COLORS.find(c => c.id === 'default')?.id || 'default';
+  const currentPalColorId = userProfile.palColorId || PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default';
   const currentPersona = userProfile.palPersona || DEFAULT_PERSONA_SETTINGS;
 
   const handleColorChange = (colorId: string) => {
@@ -29,29 +29,15 @@ export function PalSettingsPanel({ userProfile, onUpdatePalSettings }: PalSettin
   const handlePersonaChange = (trait: keyof UserProfile['palPersona'], value: number) => {
     onUpdatePalSettings({
       palPersona: {
-        // Ensure currentPersona (and its nested properties) is not null/undefined before spreading
-        ...(currentPersona || DEFAULT_PERSONA_SETTINGS), 
+        ...(currentPersona || DEFAULT_PERSONA_SETTINGS),
         [trait]: value,
       },
     });
   };
 
-  const unlockedPalColors = PAL_COLORS.filter(color => 
-    userProfile.unlockedCosmetics?.includes(color.id)
-  );
-  
-  const defaultColor = PAL_COLORS.find(col => col.id === 'default');
-  if (defaultColor && !unlockedPalColors.some(c => c.id === defaultColor.id)) {
-    unlockedPalColors.push(defaultColor);
-  }
-
-   if (unlockedPalColors.length === 0 && PAL_COLORS.length > 0 && defaultColor) {
-      // Fallback to default if somehow no colors are unlocked but default exists
-      unlockedPalColors.push(defaultColor);
-   } else if (unlockedPalColors.length === 0 && PAL_COLORS.length > 0) {
-      // Fallback to the first color in PAL_COLORS if default isn't found (should not happen with current constants)
-      unlockedPalColors.push(PAL_COLORS[0]);
-   }
+  // Use all PAL_COLORS as unlockedCosmetics should typically contain all palColorIds by default.
+  // If you had a system where colors were unlocked, you would filter PAL_COLORS here.
+  const displayablePalColors = PAL_COLORS;
 
 
   return (
@@ -70,13 +56,13 @@ export function PalSettingsPanel({ userProfile, onUpdatePalSettings }: PalSettin
               <SelectValue placeholder="Select a color" />
             </SelectTrigger>
             <SelectContent className="font-pixel pixel-corners border-2 border-foreground">
-              {unlockedPalColors.map(color => (
+              {displayablePalColors.map(color => (
                 <SelectItem key={color.id} value={color.id} className="font-pixel focus:bg-accent focus:text-accent-foreground">
-                  <span style={{ color: color.hex }}>{color.name}</span>
+                  {color.name}
                 </SelectItem>
               ))}
-               {unlockedPalColors.length === 0 && (
-                 <SelectItem value="disabled-no-colors" disabled className="font-pixel">No colors unlocked</SelectItem>
+               {displayablePalColors.length === 0 && (
+                  <SelectItem value="disabled-no-colors" disabled className="font-pixel">No colors available</SelectItem>
                )}
             </SelectContent>
           </Select>
@@ -91,7 +77,7 @@ export function PalSettingsPanel({ userProfile, onUpdatePalSettings }: PalSettin
             min={0}
             max={100}
             step={10}
-            value={[currentPersona.sarcasm]} // Use value for controlled component
+            value={[currentPersona.sarcasm]}
             onValueChange={(value) => handlePersonaChange('sarcasm', value[0])}
             className="my-2"
           />
@@ -106,7 +92,7 @@ export function PalSettingsPanel({ userProfile, onUpdatePalSettings }: PalSettin
             min={0}
             max={100}
             step={10}
-            value={[currentPersona.helpfulness]} // Use value for controlled component
+            value={[currentPersona.helpfulness]}
             onValueChange={(value) => handlePersonaChange('helpfulness', value[0])}
             className="my-2"
           />
@@ -121,7 +107,7 @@ export function PalSettingsPanel({ userProfile, onUpdatePalSettings }: PalSettin
             min={0}
             max={100}
             step={10}
-            value={[currentPersona.chattiness]} // Use value for controlled component
+            value={[currentPersona.chattiness]}
             onValueChange={(value) => handlePersonaChange('chattiness', value[0])}
             className="my-2"
           />

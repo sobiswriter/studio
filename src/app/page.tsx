@@ -23,10 +23,10 @@ import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyB
 import { generateQuestStatusComment as generateQuestStatusCommentFlow, type QuestStatusInput } from '@/ai/flows/generate-quest-status-comment';
 import {
   XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL,
-  INITIAL_UNLOCKED_COSMETICS, PAL_COLORS,
+  INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, // Re-add PAL_COLORS
   INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS,
   ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES,
-  DEFAULT_PERSONA_SETTINGS, TYPING_SPEED_MS, POST_TYPING_PAUSE_MS
+  DEFAULT_PERSONA_SETTINGS, TYPING_SPEED_MS, POST_TYPING_PAUSE_MS, INITIAL_AI_WELCOME_DELAY_MS
 } from '@/lib/constants';
 import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle, Info } from 'lucide-react';
 import Link from 'next/link';
@@ -39,13 +39,13 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService'; // Changed to relative path
+} from '../services/firestoreService';
 import type { Unsubscribe } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
+import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
-const FIVE_MINUTES_MS = 5 * 60 * 1000; // For periodic status updates
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 export default function HomePage() {
   const { user, authLoading, logout } = useAuth();
@@ -59,7 +59,7 @@ export default function HomePage() {
 
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
-  
+
   const [messageQueue, setMessageQueue] = useState<PixelPalMessage[]>([]);
   const [isPalDisplaySlotActive, setIsPalDisplaySlotActive] = useState(false);
   const displayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -72,7 +72,7 @@ export default function HomePage() {
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [isGeneratingBounties, setIsGeneratingBounties] = useState(false);
   const [isGeneratingStatusComment, setIsGeneratingStatusComment] = useState(false);
-  const [initialStatusCheckPerformed, setInitialStatusCheckPerformed] = useState(false);
+  const [initialAiWelcomeFired, setInitialAiWelcomeFired] = useState(false);
 
 
   const { toast } = useToast();
@@ -87,6 +87,7 @@ export default function HomePage() {
     setMessageQueue(prevQueue => [...prevQueue, newMessage]);
   }, []);
 
+
   useEffect(() => {
     if (!isPalDisplaySlotActive && messageQueue.length > 0) {
       const nextMessageToShow = messageQueue[0];
@@ -100,23 +101,16 @@ export default function HomePage() {
       }
 
       displayTimeoutRef.current = setTimeout(() => {
-        setMessageQueue(prevQueue => prevQueue.slice(1));
-        setIsPalDisplaySlotActive(false);
+        setMessageQueue(prevQueue => prevQueue.slice(1)); 
+        setIsPalDisplaySlotActive(false); 
       }, displayDuration);
     }
-    return () => {
-      // No cleanup needed here as timeout is managed per message above
-    };
-  }, [messageQueue, isPalDisplaySlotActive]);
-
-   useEffect(() => {
-    // General cleanup for displayTimeoutRef on unmount
     return () => {
       if (displayTimeoutRef.current) {
         clearTimeout(displayTimeoutRef.current);
       }
     };
-  }, []);
+  }, [messageQueue, isPalDisplaySlotActive]);
 
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
@@ -192,10 +186,7 @@ export default function HomePage() {
     const unsubProfile = onUserProfileSnapshot(user.uid, (profileData) => {
       if (profileData) {
         setUserProfile(profileData);
-         if (isLoadingProfile && !userProfile) { // Only greet if profile was previously null
-            showPixelPalMessage(`Yo ${profileData.displayName || 'Hero'}! Ready to crush some quests today? Let's do this!`, 'greeting');
-        }
-      } else if(user) { // Ensure user object exists before trying to create profile
+      } else if(user) {
         const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS))
                                 ? INITIAL_PAL_CREDITS
                                 : 0;
@@ -206,14 +197,13 @@ export default function HomePage() {
           xp: 0,
           level: 1,
           palCredits: initialCredits,
-          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default',
+          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default', // Ensure default palColorId
           palPersona: DEFAULT_PERSONA_SETTINGS,
           unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
           lastBountiesGeneratedDate: '',
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
           setUserProfile(initialProfile);
-          showPixelPalMessage(`New hero profile forged for ${initialProfile.displayName} in the Firebase cloud! Welcome aboard! You start with ${initialCredits} Pal Credit(s)! Let's go!`, 'info');
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
           showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later. Don't worry, your legend begins now!", 'info');
@@ -232,7 +222,7 @@ export default function HomePage() {
         ...task,
         isStarted: task.isStarted ?? false,
         startTime: task.startTime,
-        timerId: undefined,
+        timerId: undefined, 
         xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? XP_PER_TASK),
         bountyPalCredits: task.isBounty ? BOUNTY_CREDITS_REWARD : undefined,
       }));
@@ -248,12 +238,11 @@ export default function HomePage() {
     return () => {
       unsubProfile();
       unsubTasks();
-      tasks.forEach(task => {
+      tasks.forEach(task => { 
         if (task.timerId) clearTimeout(task.timerId);
       });
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, toast]); // Removed isLoadingProfile, userProfile from deps as they are set inside
+  }, [user?.uid, toast]);
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -338,9 +327,9 @@ export default function HomePage() {
 
     const taskUpdateData: Partial<Task> = {
       isCompleted: isCompletedParam,
-      isStarted: isCompletedParam ? false : originalTask.isStarted,
-      startTime: isCompletedParam ? undefined : originalTask.startTime,
-      timerId: undefined,
+      isStarted: isCompletedParam ? false : originalTask.isStarted, 
+      startTime: isCompletedParam ? undefined : originalTask.startTime, 
+      timerId: undefined, 
     };
 
     let profileUpdateData: Partial<UserProfile> | null = null;
@@ -361,7 +350,7 @@ export default function HomePage() {
       const currentSafeXP = userProfile.xp ?? 0;
       const newXP = currentSafeXP + completedTaskXp;
       let newLevel = userProfile.level;
-      let newPalCredits = currentPalCredits + completedBountyCredits;
+      let newPalCredits = currentPalCredits + completedBountyCredits; 
 
       const unlockedCosmetics = [...(userProfile.unlockedCosmetics || INITIAL_UNLOCKED_COSMETICS)];
 
@@ -399,12 +388,12 @@ export default function HomePage() {
           if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined && !originalTask.isBounty) {
             messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info';
-          } else if (originalTask.timerId !== undefined && !originalTask.isBounty) {
+          } else if (originalTask.timerId !== undefined && !originalTask.isBounty) { 
              messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
-          } else if (originalTask.timerId === undefined && !originalTask.isBounty) {
+          } else if (originalTask.timerId === undefined && !originalTask.isBounty) { 
              messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
           }
-        } else if (originalTask.isBounty && originalTask.timerId === undefined && wasActive) {
+        } else if (originalTask.isBounty && originalTask.timerId === undefined && wasActive) { 
              messageText = `Beep boop! Timer for Bounty "${taskTitleForMessage}" is UP! Bounty auto-completed! +${completedTaskXp} XP & +${completedBountyCredits} Pal Credits! Awesome!`;
         }
         showPixelPalMessage(messageText, messageType);
@@ -479,7 +468,7 @@ export default function HomePage() {
         showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
       }
 
-      const { timerId, ...taskToSave } = finalTask;
+      const { timerId, ...taskToSave } = finalTask; 
       const success = await updateTaskInDB(user.uid, taskToSave.id, taskToSave);
       if (success) {
         showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
@@ -531,33 +520,35 @@ export default function HomePage() {
     if (user?.uid && userProfile) {
       const currentSafeProfile = {
         ...userProfile,
+        palColorId: userProfile.palColorId || PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default',
         palPersona: userProfile.palPersona || DEFAULT_PERSONA_SETTINGS,
       };
 
       const dataToUpdate: Partial<UserProfile> = {};
-      if (newSettings.palColorId) {
+      let messageTypeSet = false;
+
+      if (newSettings.palColorId && newSettings.palColorId !== currentSafeProfile.palColorId) {
         dataToUpdate.palColorId = newSettings.palColorId;
+        const newColorName = PAL_COLORS.find(c => c.id === newSettings.palColorId)?.name || 'a new style';
+        showPixelPalMessage(`Pal's rockin' ${newColorName}! Settings updated!`, 'info');
+        messageTypeSet = true;
       }
       if (newSettings.palPersona) {
         dataToUpdate.palPersona = { ...currentSafeProfile.palPersona, ...newSettings.palPersona };
+         if (!messageTypeSet) { 
+            showPixelPalMessage(`Pal's personality sliders tweaked! Let's see this new vibe...`, 'info');
+         }
       }
 
-      const success = await updateUserProfileData(user.uid, dataToUpdate);
-      if (success) {
-        if (newSettings.palColorId && newSettings.palPersona) {
-            showPixelPalMessage(`Pal's lookin' snazzy AND feeling opinionated! Settings updated!`, 'info');
-        } else if (newSettings.palColorId) {
-            showPixelPalMessage(`Pal's new color scheme activated! Lookin' fresh!`, 'info');
-        } else if (newSettings.palPersona) {
-            showPixelPalMessage(`Pal's personality sliders tweaked! Let's see this new vibe...`, 'info');
+      if (Object.keys(dataToUpdate).length > 0) {
+        const success = await updateUserProfileData(user.uid, dataToUpdate);
+        if (!success) {
+          showPixelPalMessage("Tried to update your Pal's settings in the cloud, but it didn't stick. Changes might be local for now!", 'info');
+          toast({ title: "Settings Sync Error", description: "Could not save Pal settings to Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
         }
-      } else {
-        showPixelPalMessage("Tried to update your Pal's settings in the cloud, but it didn't stick. Changes might be local for now!", 'info');
-        toast({ title: "Settings Sync Error", description: "Could not save Pal settings to Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
       }
     }
   };
-
 
   const openAskPalModalHandler = () => {
     if (!user?.uid || !userProfile) {
@@ -581,7 +572,7 @@ export default function HomePage() {
     }
     let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits))
                             ? userProfile.palCredits
-                            : 0;
+                            : 0; 
     if (currentPalCredits < ASK_PAL_COST) {
       showPixelPalMessage(`Not enough credits! You need ${ASK_PAL_COST}, but only have ${currentPalCredits}. Time to quest!`, 'info');
       toast({ title: "Not Enough Pal Credits!", description: `Cost: ${ASK_PAL_COST}, You have: ${currentPalCredits}`, className: "font-pixel pixel-corners" });
@@ -592,7 +583,6 @@ export default function HomePage() {
     setIsLoadingAskPal(true);
     showPixelPalMessage(`You asked: "${userQuery}"... Hmm, let me ponder that for a nanosecond!`, 'info');
 
-
     const newCredits = Math.max(0, currentPalCredits - ASK_PAL_COST);
     const creditUpdateSuccess = await updateUserProfileData(user.uid, { palCredits: newCredits });
 
@@ -600,7 +590,7 @@ export default function HomePage() {
       showPixelPalMessage("Hmm, my circuits hiccuped trying to use your credit. Try again in a bit?", 'info');
       toast({ title: "Credit Error", description: "Could not use Pal Credit. Please try again.", variant: "destructive", className: "font-pixel pixel-corners" });
       setIsLoadingAskPal(false);
-      return;
+      return; 
     }
 
     try {
@@ -628,7 +618,7 @@ export default function HomePage() {
       });
     } finally {
       setIsLoadingAskPal(false);
-      setIsAskPalModalOpen(false);
+      setIsAskPalModalOpen(false); 
     }
   };
 
@@ -640,9 +630,9 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
 
       const newTimerId = setTimeout(() => {
-        handleToggleComplete(taskId, true);
+        handleToggleComplete(taskId, true); 
          setTasks(prevTasks => prevTasks.map(t =>
-            t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t
+            t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined, isCompleted: true } : t
         ));
       }, timerDurationMs) as unknown as number;
 
@@ -661,7 +651,7 @@ export default function HomePage() {
             ? { ...t, isStarted: false, startTime: undefined, timerId: undefined }
             : t
         ));
-        if (newTimerId) clearTimeout(newTimerId);
+        if (newTimerId) clearTimeout(newTimerId); 
         showPixelPalMessage(`Failed to mark "${taskToStart.title}" as active in the cloud. Timer cancelled.`, 'info');
         toast({ title: "Sync Error", description: `Could not start timer for "${taskToStart.title}" in Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
       }
@@ -678,15 +668,10 @@ export default function HomePage() {
           ? { ...t, isStarted: false, timerId: undefined, startTime: undefined }
           : t
       ));
-      const success = await updateTaskInDB(user.uid, taskId, { isStarted: false, startTime: undefined, timerId: undefined });
+      const success = await updateTaskInDB(user.uid, taskId, { isStarted: false, startTime: undefined });
       if (success) {
         showPixelPalMessage(`Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, 'info');
       } else {
-         setTasks(prevTasks => prevTasks.map(t =>
-          t.id === taskId && taskToCancel.startTime
-            ? { ...t, isStarted: true, timerId: taskToCancel.timerId, startTime: taskToCancel.startTime }
-            : t
-        ));
         showPixelPalMessage(`Cloud didn't get the memo on cancelling "${taskToCancel.title}". Timer might still be "active" there.`, 'info');
       }
     }
@@ -700,10 +685,10 @@ export default function HomePage() {
     setTasks(prevTasks => prevTasks.map(t =>
         t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t
     ));
-    handleToggleComplete(taskId, true);
+    handleToggleComplete(taskId, true); 
   };
 
-  const checkDueTasksAndRemind = useCallback(async () => {
+ const checkDueTasksAndRemind = useCallback(async () => {
     if (!user?.uid || !userProfile || isLoadingProfile || isLoadingTasks || isGeneratingStatusComment) {
       return;
     }
@@ -713,6 +698,7 @@ export default function HomePage() {
       const today = getTodayString();
       const dueNonBountyTasks = tasks.filter(task => !task.isBounty && !task.isCompleted && task.dueDate === today);
       let statusInput: QuestStatusInput;
+
       if (dueNonBountyTasks.length > 0) {
         statusInput = {
           statusType: 'tasks_due',
@@ -731,43 +717,44 @@ export default function HomePage() {
       const today = getTodayString();
       const dueNonBountyTasks = tasks.filter(task => !task.isBounty && !task.isCompleted && task.dueDate === today);
       if (dueNonBountyTasks.length > 0) {
-        showPixelPalMessage(`Heads up! ${dueNonBountyTasks.length} regular quest(s) are due today. You got this!`, 'reminder');
+        showPixelPalMessage(`Heads up, superstar! ${dueNonBountyTasks.length} regular quest(s) are lookin' for action today. You got this!`, 'reminder');
       } else {
-        showPixelPalMessage("Looks like your regular quest log for today is clear. Nice going!", 'info');
+        showPixelPalMessage("Today's regular quest log: squeaky clean! Either you're a legend or just enjoying the peace. Both valid!", 'info');
       }
     } finally {
       setIsGeneratingStatusComment(false);
     }
   }, [user?.uid, userProfile, tasks, isLoadingProfile, isLoadingTasks, isGeneratingStatusComment, showPixelPalMessage]);
 
-  // Effect for initial status check after data load
+
   useEffect(() => {
-    if (user?.uid && !isLoadingProfile && !isLoadingTasks && !initialStatusCheckPerformed) {
-      setInitialStatusCheckPerformed(true); 
+    if (user?.uid && !isLoadingProfile && !isLoadingTasks && !initialAiWelcomeFired) {
+      setInitialAiWelcomeFired(true); 
       const initialTimer = setTimeout(() => {
-        checkDueTasksAndRemind();
-      }, 7000); // 7 seconds delay
+        if (!isGeneratingStatusComment) { 
+            checkDueTasksAndRemind();
+        }
+      }, INITIAL_AI_WELCOME_DELAY_MS);
 
-      return () => clearTimeout(initialTimer);
+      return () => clearTimeout(initialTimer); 
     }
-  }, [user?.uid, isLoadingProfile, isLoadingTasks, initialStatusCheckPerformed, checkDueTasksAndRemind]);
+  }, [user?.uid, isLoadingProfile, isLoadingTasks, initialAiWelcomeFired, checkDueTasksAndRemind, isGeneratingStatusComment]);
 
-  // Ref to hold the latest version of checkDueTasksAndRemind for the interval
+
   const savedCheckDueTasksAndRemindRef = useRef(checkDueTasksAndRemind);
   useEffect(() => {
     savedCheckDueTasksAndRemindRef.current = checkDueTasksAndRemind;
   }, [checkDueTasksAndRemind]);
 
-  // Effect for periodic 5-minute check
   useEffect(() => {
-    if (user?.uid && !isLoadingProfile && !isLoadingTasks) { 
+    if (user?.uid && !isLoadingProfile && !isLoadingTasks) {
       const intervalId = setInterval(() => {
         savedCheckDueTasksAndRemindRef.current();
       }, FIVE_MINUTES_MS);
       return () => clearInterval(intervalId);
     }
   }, [user?.uid, isLoadingProfile, isLoadingTasks]);
-  
+
 
   if (authLoading) {
     return (
@@ -806,7 +793,10 @@ export default function HomePage() {
 
   const handleLogout = async () => {
     showPixelPalMessage("Catch ya later, hero! Don't forget to come back and crush more quests!", 'info');
-    await logout();
+    setTimeout(async () => {
+      await logout();
+      router.push('/login'); 
+    }, 500);
   };
 
   return (
@@ -824,7 +814,7 @@ export default function HomePage() {
               <LogOut size={20} />
             </Button>
           ) : (
-            <div className="w-8 h-8" /> /* Placeholder for spacing */
+            <div className="w-8 h-8" /> 
           )}
           <h1 className="text-3xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">
             Pixel Due
@@ -841,7 +831,7 @@ export default function HomePage() {
               </Button>
             </Link>
           ) : (
-            <div className="w-8 h-8" /> /* Placeholder for spacing */
+            <div className="w-8 h-8" /> 
           )}
         </div>
 

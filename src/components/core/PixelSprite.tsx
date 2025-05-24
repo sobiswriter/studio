@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import type { UserProfile, PixelPalMessage } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PAL_COLORS, TYPING_SPEED_MS } from '@/lib/constants'; // Import TYPING_SPEED_MS
+import { PAL_COLORS, TYPING_SPEED_MS } from '@/lib/constants';
 import { useEffect, useState } from 'react';
 
 interface PixelSpriteProps {
@@ -12,28 +12,55 @@ interface PixelSpriteProps {
   message: PixelPalMessage | null;
 }
 
-const NEW_PAL_IMAGE_URL = "https://drive.google.com/uc?export=view&id=1MSiI_tAarxp3sgXY9_7J2uc6OPNEzRA8";
+const FALLBACK_IMAGE_URL = "https://placehold.co/128x128.png?text=Pal&font=pixel";
+const FALLBACK_DATA_AI_HINT = "pixel character";
 
 export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
-  // Base Pal image is now fixed to the new sprite
-  const basePalImageUrl = NEW_PAL_IMAGE_URL;
   const [typedMessageText, setTypedMessageText] = useState('');
+  const [currentPalImageUrl, setCurrentPalImageUrl] = useState(PAL_COLORS.find(c => c.id === 'default')?.imageUrl || PAL_COLORS[0]?.imageUrl || FALLBACK_IMAGE_URL);
+  const [currentPalDataAiHint, setCurrentPalDataAiHint] = useState(PAL_COLORS.find(c => c.id === 'default')?.dataAiHint || PAL_COLORS[0]?.dataAiHint || FALLBACK_DATA_AI_HINT);
 
-  // User specific customizations like hats or accessories could still be applied here in the future
-  // For now, we only have the base Pal image.
 
   useEffect(() => {
-    setTypedMessageText('');
+    let imageUrl = FALLBACK_IMAGE_URL;
+    let dataAiHint = FALLBACK_DATA_AI_HINT;
+
+    if (userProfile?.palColorId) {
+      const selectedColor = PAL_COLORS.find(c => c.id === userProfile.palColorId);
+      if (selectedColor) {
+        imageUrl = selectedColor.imageUrl;
+        dataAiHint = selectedColor.dataAiHint;
+      } else {
+        const defaultColor = PAL_COLORS.find(c => c.id === 'default') || (PAL_COLORS.length > 0 ? PAL_COLORS[0] : null);
+        if (defaultColor) {
+            imageUrl = defaultColor.imageUrl;
+            dataAiHint = defaultColor.dataAiHint;
+        }
+      }
+    } else {
+        const defaultColor = PAL_COLORS.find(c => c.id === 'default') || (PAL_COLORS.length > 0 ? PAL_COLORS[0] : null);
+        if (defaultColor) {
+            imageUrl = defaultColor.imageUrl;
+            dataAiHint = defaultColor.dataAiHint;
+        }
+    }
+    setCurrentPalImageUrl(imageUrl);
+    setCurrentPalDataAiHint(dataAiHint);
+  }, [userProfile?.palColorId]);
+
+
+  useEffect(() => {
+    setTypedMessageText(''); // Reset typed text when a new message comes in
 
     if (message?.text) {
       let index = 0;
       const intervalId = setInterval(() => {
-        setTypedMessageText(message.text.substring(0, index + 1));
+        setTypedMessageText(prev => message.text.substring(0, index + 1));
         index++;
-        if (index === message.text.length) {
+        if (index >= message.text.length) {
           clearInterval(intervalId);
         }
-      }, TYPING_SPEED_MS); // Use constant for typing speed
+      }, TYPING_SPEED_MS);
 
       return () => clearInterval(intervalId);
     }
@@ -50,16 +77,15 @@ export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
           style={{ imageRendering: 'pixelated' }}
         >
           <Image
-            key={basePalImageUrl}
-            src={basePalImageUrl}
-            alt="Pixel Pal Base"
+            key={currentPalImageUrl} 
+            src={currentPalImageUrl}
+            alt="Pixel Pal"
             width={128}
             height={128}
             className="object-contain pixel-corners"
-            data-ai-hint="pixel wizard character" // Updated data-ai-hint
-            priority
+            data-ai-hint={currentPalDataAiHint}
+            priority 
           />
-          {/* Future layers for hats/accessories would go here, positioned absolutely */}
         </div>
         <div className="w-full p-3 bg-secondary rounded pixel-corners border border-foreground text-sm min-h-[60px] flex items-center justify-center">
           <p className="font-pixel text-secondary-foreground text-center">
