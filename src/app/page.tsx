@@ -39,7 +39,6 @@ import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
-const PAL_MESSAGE_MIN_DISPLAY_MS = 6500; // 6.5 seconds
 
 export default function HomePage() {
   const { user, authLoading, logout } = useAuth();
@@ -53,11 +52,7 @@ export default function HomePage() {
 
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
-  const [isPalSpeaking, setIsPalSpeaking] = useState(false);
-  const messageQueueRef = useRef<PixelPalMessage[]>([]);
-  const palSpeakerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-
+  
   const [isAskPalModalOpen, setIsAskPalModalOpen] = useState(false);
   const [isLoadingAskPal, setIsLoadingAskPal] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -68,26 +63,6 @@ export default function HomePage() {
 
   const { toast } = useToast();
 
-  const processMessageQueue = useCallback(() => {
-    if (messageQueueRef.current.length > 0) {
-      const nextMessage = messageQueueRef.current.shift();
-      if (nextMessage) {
-        setCurrentPixelPalMessage(nextMessage);
-        setIsPalSpeaking(true);
-        
-        if (palSpeakerTimeoutRef.current) {
-          clearTimeout(palSpeakerTimeoutRef.current);
-        }
-        palSpeakerTimeoutRef.current = setTimeout(() => {
-          setIsPalSpeaking(false);
-          processMessageQueue(); 
-        }, PAL_MESSAGE_MIN_DISPLAY_MS);
-      }
-    } else {
-      setIsPalSpeaking(false); 
-    }
-  }, []);
-
   const showPixelPalMessage = useCallback((text: string, type: PixelPalMessage['type']) => {
     const newMessage: PixelPalMessage = { text, type, timestamp: Date.now() };
     
@@ -95,29 +70,7 @@ export default function HomePage() {
       const updatedLog = [newMessage, ...prevLog];
       return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
     });
-
-    if (!isPalSpeaking) {
-      setCurrentPixelPalMessage(newMessage);
-      setIsPalSpeaking(true);
-
-      if (palSpeakerTimeoutRef.current) {
-        clearTimeout(palSpeakerTimeoutRef.current);
-      }
-      palSpeakerTimeoutRef.current = setTimeout(() => {
-        setIsPalSpeaking(false);
-        processMessageQueue();
-      }, PAL_MESSAGE_MIN_DISPLAY_MS);
-    } else {
-      messageQueueRef.current.push(newMessage);
-    }
-  }, [isPalSpeaking, processMessageQueue]);
-
-  useEffect(() => {
-    return () => {
-      if (palSpeakerTimeoutRef.current) {
-        clearTimeout(palSpeakerTimeoutRef.current);
-      }
-    };
+    setCurrentPixelPalMessage(newMessage); // Directly update the current message
   }, []);
 
 
@@ -205,7 +158,7 @@ export default function HomePage() {
           xp: 0,
           level: 1,
           palCredits: initialCredits,
-          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || 'default',
+          palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || PAL_COLORS[0]?.id || 'default',
           palPersona: DEFAULT_PERSONA_SETTINGS,
           unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
           lastBountiesGeneratedDate: '',
@@ -597,12 +550,6 @@ export default function HomePage() {
       return;
     }
     
-    // Optimistically update local state for palCredits, but the onSnapshot listener for userProfile
-    // will eventually provide the source of truth from Firebase.
-    // It's fine to update here for immediate UI feedback if needed,
-    // but ensure it doesn't conflict with onSnapshot.
-    // For now, let's rely on onSnapshot to update userProfile which includes palCredits.
-
     try {
       const persona = userProfile.palPersona || DEFAULT_PERSONA_SETTINGS;
       const aiInput: PalSarcasticCommentInput = { 
@@ -922,5 +869,7 @@ export default function HomePage() {
   );
 }
 
+
+    
 
     
