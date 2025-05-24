@@ -1,13 +1,16 @@
+
 "use client";
 
 import type { UserProfile } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { LEVEL_THRESHOLDS, MAX_LEVEL } from '@/lib/constants';
-import { Sparkles } from 'lucide-react'; // Using Sparkles for credits
+import { Sparkles } from 'lucide-react'; 
+// Removed Logout button import as it's now handled directly in page.tsx
 
 interface UserProfileCardProps {
   userProfile: UserProfile | null;
+  // onLogout prop removed as logout button is now global in page.tsx
 }
 
 export function UserProfileCard({ userProfile }: UserProfileCardProps) {
@@ -15,10 +18,10 @@ export function UserProfileCard({ userProfile }: UserProfileCardProps) {
     return (
       <Card className="pixel-corners border-2 border-foreground shadow-[4px_4px_0px_hsl(var(--foreground))]">
         <CardHeader>
-          <CardTitle className="font-pixel">Hero Stats</CardTitle>
+          <CardTitle className="font-pixel text-center">Hero Stats</CardTitle>
         </CardHeader>
         <CardContent>
-          <p>Loading profile...</p>
+          <p className="font-pixel text-center">Loading profile...</p>
         </CardContent>
       </Card>
     );
@@ -28,7 +31,7 @@ export function UserProfileCard({ userProfile }: UserProfileCardProps) {
   const currentXP = userProfile.xp;
   
   const xpForCurrentLevel = LEVEL_THRESHOLDS[currentLevel - 1] || 0;
-  const xpForNextLevel = currentLevel < MAX_LEVEL ? LEVEL_THRESHOLDS[currentLevel] : currentXP; // If max level, target is current XP
+  const xpForNextLevel = currentLevel < MAX_LEVEL ? LEVEL_THRESHOLDS[currentLevel] : currentXP; 
 
   const xpInCurrentLevel = currentXP - xpForCurrentLevel;
   const xpNeededForNextLevel = xpForNextLevel - xpForCurrentLevel;
@@ -42,6 +45,7 @@ export function UserProfileCard({ userProfile }: UserProfileCardProps) {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="font-pixel">
+          <p>Email: {userProfile.email || 'N/A'}</p>
           <p>Level: {userProfile.level}</p>
           <p>XP: {userProfile.xp}</p>
           <p className="flex items-center">
@@ -56,6 +60,7 @@ export function UserProfileCard({ userProfile }: UserProfileCardProps) {
           </div>
           <Progress value={progressPercentage} className="h-4 border border-foreground pixel-corners" />
         </div>
+        {/* Logout button removed from here, will be handled globally in page.tsx */}
       </CardContent>
     </Card>
   );

@@ -21,7 +21,9 @@ import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type
 import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentInput, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
 import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesInput, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
 import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, HATS, ACCESSORIES, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES } from '@/lib/constants';
-import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun } from 'lucide-react';
+import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle } from 'lucide-react';
+import Link from 'next/link'; // Added Link for Add Credits button
+
 import {
   onUserProfileSnapshot,
   createUserProfileInDB,
@@ -68,7 +70,6 @@ export default function HomePage() {
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
@@ -141,7 +142,6 @@ export default function HomePage() {
       if (profileData) {
         setUserProfile(profileData);
       } else {
-        // If profile doesn't exist, create it (e.g., for a newly signed-up user)
         const initialProfile: UserProfile = {
           uid: user.uid,
           email: user.email || undefined,
@@ -154,7 +154,7 @@ export default function HomePage() {
             color: PAL_COLORS.find(c => c.id === 'default')?.id || 'default',
           },
           unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
-          lastBountiesGeneratedDate: '', // Ensure this is initialized
+          lastBountiesGeneratedDate: '',
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
           setUserProfile(initialProfile);
@@ -177,8 +177,8 @@ export default function HomePage() {
         ...task,
         isStarted: task.isStarted ?? false,
         startTime: task.startTime,
-        timerId: undefined, // Timers are client-side only and reset on load
-        xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? XP_PER_TASK), // Ensure XP default for non-bounties
+        timerId: undefined, 
+        xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? XP_PER_TASK),
         bountyPalCredits: task.isBounty ? BOUNTY_CREDITS_REWARD : undefined,
       }));
       setTasks(loadedTasks);
@@ -193,13 +193,11 @@ export default function HomePage() {
     return () => {
       unsubProfile();
       unsubTasks();
-      // Clear any active client-side timers when the component unmounts or user changes
       tasks.forEach(task => {
         if (task.timerId) clearTimeout(task.timerId);
       });
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]); // Re-run when user.uid changes (login/logout)
+  }, [user?.uid, toast, showPixelPalMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -222,8 +220,7 @@ export default function HomePage() {
           className: "font-pixel pixel-corners",
         });
         showPixelPalMessage("Whoa there, make sure to fill in all the quest details before adding!", 'info');
-        setIsAddingTask(false); // Reset loading state here
-        return;
+        return; 
       }
 
       showPixelPalMessage(`XP crunchin' for "${newTaskData.title}"... Hold tight!`, 'info');
@@ -241,9 +238,9 @@ export default function HomePage() {
         dueDate: newTaskData.dueDate,
         isCompleted: false,
         createdAt: Date.now(),
-        isStarted: false, // Always false on new task
+        isStarted: false, 
         xp: taskXp,
-        isBounty: false, // Explicitly false for user-added tasks
+        isBounty: false, 
       };
 
       const addedTask = await addTaskToDB(user.uid, newTask);
@@ -410,8 +407,7 @@ export default function HomePage() {
           className: "font-pixel pixel-corners",
         });
         showPixelPalMessage("Hold up! All quest details need to be filled in, even for edits.", 'info');
-        setIsSavingTask(false); // Reset loading state here
-        return;
+        return; 
       }
 
       let finalTask = { ...updatedTaskData };
@@ -506,8 +502,7 @@ export default function HomePage() {
       setIsAskPalModalOpen(false);
       return;
     }
-    let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) ? userProfile.palCredits : 0;
-
+    let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) ? userProfile.palCredits : INITIAL_PAL_CREDITS;
     if (currentPalCredits < ASK_PAL_COST) {
       showPixelPalMessage(`Not enough credits! You need ${ASK_PAL_COST}, but only have ${currentPalCredits}. Time to quest!`, 'info');
       toast({ title: "Not Enough Pal Credits!", description: `Cost: ${ASK_PAL_COST}, You have: ${currentPalCredits}`, className: "font-pixel pixel-corners" });
@@ -528,7 +523,8 @@ export default function HomePage() {
       setIsLoadingAskPal(false);
       return;
     }
-    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null); // Optimistic update
+    // Optimistically update local state, Firestore snapshot will confirm
+    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null);
 
     try {
       const aiInput: PalSarcasticCommentInput = { userQuery }; 
@@ -683,7 +679,39 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto p-4 space-y-6 md:space-y-8 max-w-5xl">
-      <header className="text-center py-4">
+      <div className="fixed top-4 left-4 z-50">
+        {user && (
+          <Button
+            onClick={async () => {
+              await logout();
+              router.push('/login'); // Redirect after logout
+            }}
+            variant="outline"
+            className="font-pixel btn-pixel flex items-center gap-2"
+            title="Logout"
+          >
+            <LogOut size={18} />
+            Logout
+          </Button>
+        )}
+      </div>
+      <div className="fixed top-4 right-4 z-50">
+        {user && (
+          <Link href="/add-credits" legacyBehavior>
+            <Button
+              variant="outline"
+              className="font-pixel btn-pixel flex items-center gap-2"
+              title="Add Pal Credits"
+            >
+              <PlusCircle size={18} />
+              Add Credits
+            </Button>
+          </Link>
+        )}
+      </div>
+
+
+      <header className="text-center py-12 md:py-16"> {/* Added more top padding */}
         <h1 className="text-4xl md:text-5xl font-pixel text-primary drop-shadow-[3px_3px_0px_hsl(var(--foreground))]">Pixel Due</h1>
       </header>
 
@@ -727,7 +755,7 @@ export default function HomePage() {
         </section>
 
         <aside className="space-y-6">
-          {userProfile && <UserProfileCard userProfile={userProfile} onLogout={logout} />}
+          {userProfile && <UserProfileCard userProfile={userProfile} />}
           <PixelSprite userProfile={userProfile} message={currentPixelPalMessage} />
           <PixelPalLog messages={pixelPalMessageLog} />
           {userProfile && <CosmeticCustomizationPanel userProfile={userProfile} onUpdateCosmetics={handleUpdateCosmetics} />}
@@ -765,5 +793,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
