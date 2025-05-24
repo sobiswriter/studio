@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react'; // Added useEffect
+import { useAuth } from '../../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -38,7 +38,7 @@ export default function SignupPage() {
     setError(null);
     setIsLoading(true);
     try {
-      await signup(email, password);
+      await signup({email, password});
       router.push('/'); // Redirect on successful signup
     } catch (err: any) {
       setError(err.message || 'Failed to create an account. Please try again.');
@@ -62,7 +62,7 @@ export default function SignupPage() {
     }
   };
 
-  if (authLoading || user) {
+  if (authLoading || (!authLoading && user)) { // Show loading or redirect if user becomes available
     return (
       <div className="flex items-center justify-center min-h-screen bg-background font-pixel p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
