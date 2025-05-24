@@ -12,23 +12,18 @@ interface PixelSpriteProps {
   message: PixelPalMessage | null;
 }
 
+const NEW_PAL_IMAGE_URL = "https://drive.google.com/uc?export=view&id=1MSiI_tAarxp3sgXY9_7J2uc6OPNEzRA8";
+
 export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
-  const [basePalImageUrl, setBasePalImageUrl] = useState('https://placehold.co/128x128/8A2BE2/FFFFFF.png?text=Pal&font=pixel');
+  // Base Pal image is now fixed to the new sprite
+  const basePalImageUrl = NEW_PAL_IMAGE_URL;
   const [typedMessageText, setTypedMessageText] = useState('');
 
-  useEffect(() => {
-    let currentSpriteColorHex = PAL_COLORS.find(c => c.id === 'default')?.hex || '#8A2BE2';
-    if (userProfile?.palColorId) {
-      const selectedColorObj = PAL_COLORS.find(c => c.id === userProfile.palColorId);
-      if (selectedColorObj) {
-        currentSpriteColorHex = selectedColorObj.hex;
-      }
-    }
-    setBasePalImageUrl(`https://placehold.co/128x128/${currentSpriteColorHex.substring(1)}/FFFFFF.png?text=Pal&font=pixel`);
-  }, [userProfile?.palColorId]);
+  // User specific customizations like hats or accessories could still be applied here in the future
+  // For now, we only have the base Pal image.
 
   useEffect(() => {
-    setTypedMessageText(''); 
+    setTypedMessageText('');
 
     if (message?.text) {
       let index = 0;
@@ -55,15 +50,16 @@ export function PixelSprite({ userProfile, message }: PixelSpriteProps) {
           style={{ imageRendering: 'pixelated' }}
         >
           <Image
-            key={basePalImageUrl} 
+            key={basePalImageUrl}
             src={basePalImageUrl}
             alt="Pixel Pal Base"
             width={128}
             height={128}
             className="object-contain pixel-corners"
-            data-ai-hint="pixel character purple"
+            data-ai-hint="pixel wizard character" // Updated data-ai-hint
             priority
           />
+          {/* Future layers for hats/accessories would go here, positioned absolutely */}
         </div>
         <div className="w-full p-3 bg-secondary rounded pixel-corners border border-foreground text-sm min-h-[60px] flex items-center justify-center">
           <p className="font-pixel text-secondary-foreground text-center">
