@@ -11,6 +11,7 @@ import { UserProfileCard } from '@/components/core/UserProfileCard';
 import { EditTaskModal } from '@/components/core/EditTaskModal';
 import { CosmeticCustomizationPanel } from '@/components/core/CosmeticCustomizationPanel';
 import { AnimatedCompletion } from '@/components/core/AnimatedCompletion';
+import { PixelPalLog } from '@/components/core/PixelPalLog'; // Import new component
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,10 +28,11 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService'; // Changed to relative path
+} from '../services/firestoreService';
 import type { Unsubscribe } from 'firebase/firestore';
 
 const SIMULATED_USER_ID = 'simulated-user-123';
+const MAX_LOG_ENTRIES = 20;
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -38,7 +40,10 @@ export default function HomePage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
   const [lastCompletedTaskElement, setLastCompletedTaskElement] = useState<HTMLElement | null>(null);
-  const [pixelPalMessage, setPixelPalMessage] = useState<PixelPalMessage | null>(null);
+  
+  const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
+  const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
+
   const [isLoadingAiSuggestions, setIsLoadingAiSuggestions] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [showAiSuggestionsModal, setShowAiSuggestionsModal] = useState(false);
@@ -49,9 +54,16 @@ export default function HomePage() {
 
   const { toast } = useToast();
 
+  const showPixelPalMessage = useCallback((text: string, type: PixelPalMessage['type']) => {
+    const newMessage: PixelPalMessage = { text, type, timestamp: Date.now() };
+    setCurrentPixelPalMessage(newMessage);
+    setPixelPalMessageLog(prevLog => [newMessage, ...prevLog].slice(0, MAX_LOG_ENTRIES));
+  }, []);
+
+
   // --- Firestore Listeners & Initialization ---
   useEffect(() => {
-    setPixelPalMessage({ text: "Yo! Ready to crush some quests today? Let's do this!", type: 'greeting', timestamp: Date.now() });
+    showPixelPalMessage("Yo! Ready to crush some quests today? Let's do this!", 'greeting');
 
     const unsubProfile = onUserProfileSnapshot(SIMULATED_USER_ID, (profileData) => {
       if (profileData) {
@@ -71,10 +83,10 @@ export default function HomePage() {
         };
         createUserProfileInDB(SIMULATED_USER_ID, initialProfile).then(() => {
           setUserProfile(initialProfile);
-          setPixelPalMessage({ text: "New hero profile set up in the cloud! Welcome aboard!", type: 'info', timestamp: Date.now() });
+          showPixelPalMessage("New hero profile set up in the cloud! Welcome aboard!", 'info');
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
-          setPixelPalMessage({ text: "Hmm, couldn't save your new profile to the cloud. We'll try again later.", type: 'info', timestamp: Date.now() });
+          showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later.", 'info');
         });
       }
       setIsLoadingProfile(false);
@@ -82,7 +94,7 @@ export default function HomePage() {
       console.error("Error fetching user profile:", error);
       toast({ title: "Profile Error", description: "Could not load user profile from Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
       setIsLoadingProfile(false);
-      setPixelPalMessage({ text: "Yikes! Trouble loading your hero stats from the cloud.", type: 'info', timestamp: Date.now() });
+      showPixelPalMessage("Yikes! Trouble loading your hero stats from the cloud.", 'info');
     });
 
     const unsubTasks = onTasksSnapshot(SIMULATED_USER_ID, (fetchedTasks) => {
@@ -90,7 +102,7 @@ export default function HomePage() {
         ...task,
         isStarted: task.isStarted ?? false,
         startTime: task.startTime,
-        timerId: undefined, // Timers are client-side only, re-establish if needed
+        timerId: undefined, 
         xp: task.xp ?? XP_PER_TASK,
       }));
       setTasks(loadedTasks);
@@ -99,20 +111,18 @@ export default function HomePage() {
       console.error("Error fetching tasks:", error);
       toast({ title: "Tasks Error", description: "Could not load tasks from Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
       setIsLoadingTasks(false);
-      setPixelPalMessage({ text: "Error summoning your quests from the Firebase ether!", type: 'info', timestamp: Date.now() });
+      showPixelPalMessage("Error summoning your quests from the Firebase ether!", 'info');
     });
 
     return () => {
       unsubProfile();
       unsubTasks();
-      // Clear any active client-side timers
       tasks.forEach(task => {
         if (task.timerId) clearTimeout(task.timerId);
       });
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Removed `tasks` from dependency array to avoid re-running listeners unnecessarily
-          // Tasks state will be updated by onSnapshot, not by adding 'tasks' here.
+  }, [showPixelPalMessage]); 
 
   // --- Task Management ---
   const handleAddTask = async (newTaskData: Omit<Task, 'id' | 'isCompleted' | 'createdAt' | 'xp' | 'isStarted'>) => {
@@ -120,16 +130,16 @@ export default function HomePage() {
     let taskXp = XP_PER_TASK;
 
     try {
-      setPixelPalMessage({ text: `XP crunchin' for "${newTaskData.title}"... Hold tight!`, type: 'info', timestamp: Date.now() });
+      showPixelPalMessage(`XP crunchin' for "${newTaskData.title}"... Hold tight!`, 'info');
       const xpInput: CalculateTaskXpInput = {
         taskTitle: newTaskData.title,
         taskDuration: newTaskData.duration,
       };
       const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
       taskXp = xpResult.xp;
-      setPixelPalMessage({ text: `XP calculation complete! "${newTaskData.title}" is worth ${taskXp} XP. Sweet!`, type: 'info', timestamp: Date.now() });
+      showPixelPalMessage(`XP calculation complete! "${newTaskData.title}" is worth ${taskXp} XP. Sweet!`, 'info');
       
-      const newTask: Omit<Task, 'id'> = { // Firestore generates ID
+      const newTask: Omit<Task, 'id'> = { 
         ...newTaskData,
         isCompleted: false,
         createdAt: Date.now(),
@@ -139,15 +149,14 @@ export default function HomePage() {
 
       const addedTask = await addTaskToDB(SIMULATED_USER_ID, newTask);
       if (addedTask) {
-        // UI will update via onSnapshot listener
-        setPixelPalMessage({ text: `Alright, quest "${newTask.title}" locked and loaded in the cloud! Go get 'em!`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Alright, quest "${newTask.title}" locked and loaded in the cloud! Go get 'em!`, 'info');
       } else {
         throw new Error("Task not added to DB");
       }
     } catch (error) {
       console.error("Error during task addition or XP calculation:", error);
       toast({ title: "Add Task Error", description: `Could not process "${newTaskData.title}". Default XP might be used if added.`, variant: "destructive", className: "font-pixel pixel-corners" });
-      setPixelPalMessage({ text: `Hmm, cloud save for "${newTaskData.title}" hiccuped. Try again?`, type: 'info', timestamp: Date.now() });
+      showPixelPalMessage(`Hmm, cloud save for "${newTaskData.title}" hiccuped. Try again?`, 'info');
     } finally {
       setIsAddingTask(false);
     }
@@ -156,7 +165,7 @@ export default function HomePage() {
   const handleToggleComplete = async (taskId: string, isCompletedParam: boolean) => {
     const originalTask = tasks.find(t => t.id === taskId);
     if (!originalTask || !userProfile) {
-      setPixelPalMessage({ text: "Huh, that quest seems to have vanished. Or maybe it's just shy?", type: 'info', timestamp: Date.now() });
+      showPixelPalMessage("Huh, that quest seems to have vanished. Or maybe it's just shy?", 'info');
       return;
     }
 
@@ -165,7 +174,6 @@ export default function HomePage() {
     const taskTitleForMessage = originalTask.title;
     const completedTaskXp = originalTask.xp ?? XP_PER_TASK;
 
-    // Clear client-side timer if one exists for this task
     if (originalTask.timerId && isCompletedParam) {
       clearTimeout(originalTask.timerId);
     }
@@ -212,17 +220,16 @@ export default function HomePage() {
         if (wasActive && originalTask.startTime && typeof originalTask.duration === 'number') {
           const elapsedTimeMs = Date.now() - originalTask.startTime;
           const totalDurationMs = originalTask.duration * 60 * 1000;
-          if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined) { // Skipped early AND timer was active (timerId indicates it was manually skipped by user action, not auto-completed)
+          if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined) { 
             messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info';
-          } else if (originalTask.timerId !== undefined) { // Skipped, but not "too" early OR timer was active and this action completes it.
+          } else if (originalTask.timerId !== undefined) { 
             messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
           } else if (originalTask.timerId === undefined) { 
-             // This case indicates it was likely auto-completed by its timer (timerId would be cleared by page.tsx's setTimeout before calling this)
             messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
           }
         }
-        setPixelPalMessage({ text: messageText, type: messageType, timestamp: Date.now() });
+        showPixelPalMessage(messageText, messageType);
         
         if (profileUpdateData) {
           await updateUserProfileData(SIMULATED_USER_ID, profileUpdateData);
@@ -235,14 +242,14 @@ export default function HomePage() {
             className: "font-pixel pixel-corners border-2 border-primary shadow-[2px_2px_0px_hsl(var(--primary))]",
           });
           setTimeout(() => { 
-             setPixelPalMessage({ text: `LEVEL ${newLevelForMessage}! You're basically a legend now. Check for new styles!`, type: 'encouragement', timestamp: Date.now() });
+             showPixelPalMessage(`LEVEL ${newLevelForMessage}! You're basically a legend now. Check for new styles!`, 'encouragement');
           }, 200);
         }
       } else {
-         setPixelPalMessage({ text: `Quest "${taskTitleForMessage}" is back on the list. No worries!`, type: 'info', timestamp: Date.now() });
+         showPixelPalMessage(`Quest "${taskTitleForMessage}" is back on the list. No worries!`, 'info');
       }
     } else {
-      setPixelPalMessage({ text: `Cloud sync for "${taskTitleForMessage}" went sideways. Changes might not stick.`, type: 'info', timestamp: Date.now() });
+      showPixelPalMessage(`Cloud sync for "${taskTitleForMessage}" went sideways. Changes might not stick.`, 'info');
       toast({ title: "Sync Error", description: `Could not update "${taskTitleForMessage}" in Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
     }
   };
@@ -250,7 +257,7 @@ export default function HomePage() {
   const handleEditTask = (taskToEdit: Task) => {
     if (taskToEdit.isStarted) {
         toast({ title: "Active Quest", description: "Cannot edit a quest while its timer is running. Too intense!", className: "font-pixel pixel-corners"});
-        setPixelPalMessage({ text: `Whoa there! Can't edit "${taskToEdit.title}" while it's an active quest. Finish or cancel it first!`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Whoa there! Can't edit "${taskToEdit.title}" while it's an active quest. Finish or cancel it first!`, 'info');
         return;
     }
     setEditingTask(taskToEdit);
@@ -263,34 +270,34 @@ export default function HomePage() {
 
     try {
         if (originalTask && (originalTask.title !== updatedTaskData.title || originalTask.duration !== updatedTaskData.duration)) {
-            setPixelPalMessage({ text: `Recalculating XP for "${updatedTaskData.title}"... one sec!`, type: 'info', timestamp: Date.now() });
+            showPixelPalMessage(`Recalculating XP for "${updatedTaskData.title}"... one sec!`, 'info');
             const xpInput: CalculateTaskXpInput = {
             taskTitle: updatedTaskData.title,
             taskDuration: updatedTaskData.duration,
             };
             const xpResult: CalculateTaskXpOutput = await calculateTaskXpFlow(xpInput);
             finalTask.xp = xpResult.xp;
-            setPixelPalMessage({ text: `XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, type: 'info', timestamp: Date.now() });
+            showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
         }
 
         const { timerId, ...taskToSave } = finalTask;
         const success = await updateTaskInDB(SIMULATED_USER_ID, taskToSave.id, taskToSave);
         if (success) {
-            setPixelPalMessage({ text: `Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, type: 'info', timestamp: Date.now() });
+            showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
             setEditingTask(null); 
         } else {
             throw new Error("DB Update Failed");
         }
     } catch (error) {
         console.error("Error saving task or recalculating XP:", error);
-        finalTask.xp = originalTask?.xp ?? XP_PER_TASK; // Fallback XP
+        finalTask.xp = originalTask?.xp ?? XP_PER_TASK; 
         toast({
             title: "Save Error",
             description: `Could not save changes for "${finalTask.title}". Previous XP might be kept if edit failed during XP calc.`,
             variant: "destructive",
             className: "font-pixel pixel-corners",
         });
-        setPixelPalMessage({ text: `Cloud save for "${finalTask.title}" edits failed. Changes might be local only.`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Cloud save for "${finalTask.title}" edits failed. Changes might be local only.`, 'info');
     } finally {
         setIsSavingTask(false);
     }
@@ -304,12 +311,12 @@ export default function HomePage() {
       }
       try {
         await deleteTaskFromDB(SIMULATED_USER_ID, taskId);
-        setPixelPalMessage({ text: `Quest "${taskToDelete.title}" zapped from the records! Poof!`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Quest "${taskToDelete.title}" zapped from the records! Poof!`, 'info');
         toast({ title: "Quest Deleted", description: `"${taskToDelete.title}" has been removed.`, className: "font-pixel pixel-corners" });
       } catch (error) {
         console.error("Error deleting task from DB:", error);
         toast({ title: "Delete Error", description: `Could not delete "${taskToDelete.title}" from Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
-        setPixelPalMessage({ text: `Couldn't make "${taskToDelete.title}" vanish from the cloud. It's gone locally, though.`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Couldn't make "${taskToDelete.title}" vanish from the cloud. It's gone locally, though.`, 'info');
       }
     }
   };
@@ -318,9 +325,9 @@ export default function HomePage() {
     if (userProfile) {
       const success = await updateUserProfileData(SIMULATED_USER_ID, { pixelSpriteCosmetics: newCosmetics });
       if (success) {
-        setPixelPalMessage({ text: `Ooh, look at you! That new style is 🔥! Pal is looking fresh.`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Ooh, look at you! That new style is 🔥! Pal is looking fresh.`, 'info');
       } else {
-        setPixelPalMessage({ text: "Tried to update your Pal's look in the cloud, but it didn't stick. Style is local for now!", type: 'info', timestamp: Date.now() });
+        showPixelPalMessage("Tried to update your Pal's look in the cloud, but it didn't stick. Style is local for now!", 'info');
         toast({ title: "Cosmetic Sync Error", description: "Could not save cosmetic changes to Firebase.", variant: "destructive", className: "font-pixel pixel-corners" });
       }
     }
@@ -328,15 +335,15 @@ export default function HomePage() {
 
   const fetchAiSuggestions = async () => {
     setIsLoadingAiSuggestions(true);
-    setPixelPalMessage({ text: "My circuits are whirring... Cooking up some quest ideas!", type: 'info', timestamp: Date.now() });
+    showPixelPalMessage("My circuits are whirring... Cooking up some quest ideas!", 'info');
     try {
       const result: SuggestTasksOutput = await suggestTasksFlow({}); 
       setAiSuggestions(result.suggestedTasks);
       if (result.suggestedTasks.length > 0) {
         setShowAiSuggestionsModal(true);
-        setPixelPalMessage({ text: "Eureka! Got some fresh quest suggestions for ya!", type: 'suggestion', timestamp: Date.now() });
+        showPixelPalMessage("Eureka! Got some fresh quest suggestions for ya!", 'suggestion');
       } else {
-        setPixelPalMessage({ text: "My suggestion box is empty! You're either a mind reader or just super organized. Nice!", type: 'info', timestamp: Date.now() });
+        showPixelPalMessage("My suggestion box is empty! You're either a mind reader or just super organized. Nice!", 'info');
          toast({
             title: "No Suggestions",
             description: "Pixel Pal couldn't find any new task suggestions right now.",
@@ -345,7 +352,7 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error("Error fetching AI suggestions:", error);
-      setPixelPalMessage({ text: "My AI brain just blue-screened for a sec. Maybe try asking for suggestions again in a bit?", type: 'info', timestamp: Date.now() });
+      showPixelPalMessage("My AI brain just blue-screened for a sec. Maybe try asking for suggestions again in a bit?", 'info');
       toast({
         title: "AI Error",
         description: "Could not fetch task suggestions.",
@@ -358,8 +365,7 @@ export default function HomePage() {
   };
 
   const handleAddSuggestedTask = async (title: string) => {
-    // This will trigger the usual handleAddTask flow, including XP calculation
-    await handleAddTask({ title, duration: 30 }); // Assuming a default duration for suggested tasks
+    await handleAddTask({ title, duration: 30 }); 
   };
 
   const handleStartQuest = async (taskId: string) => {
@@ -380,7 +386,7 @@ export default function HomePage() {
       
       const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: true, startTime: Date.now() });
       if (success) {
-        setPixelPalMessage({ text: `Timer started for "${taskToStart.title}"! Go get 'em, tiger!`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Timer started for "${taskToStart.title}"! Go get 'em, tiger!`, 'info');
       } else {
          setTasks(prevTasks => prevTasks.map(t => 
             t.id === taskId 
@@ -388,7 +394,7 @@ export default function HomePage() {
             : t
         ));
         if (newTimerId) clearTimeout(newTimerId);
-        setPixelPalMessage({ text: `Failed to mark "${taskToStart.title}" as active in the cloud. Timer cancelled.`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Failed to mark "${taskToStart.title}" as active in the cloud. Timer cancelled.`, 'info');
         toast({ title: "Sync Error", description: `Could not start timer for "${taskToStart.title}" in Firebase.`, variant: "destructive", className: "font-pixel pixel-corners" });
       }
     }
@@ -405,14 +411,14 @@ export default function HomePage() {
       ));
       const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: false, startTime: undefined });
       if (success) {
-        setPixelPalMessage({ text: `Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, 'info');
       } else {
         setTasks(prevTasks => prevTasks.map(t => 
             t.id === taskId && taskToCancel.startTime
             ? { ...t, isStarted: true, timerId: taskToCancel.timerId, startTime: taskToCancel.startTime } 
             : t
         ));
-        setPixelPalMessage({ text: `Cloud didn't get the memo on cancelling "${taskToCancel.title}". Timer might still be "active" there.`, type: 'info', timestamp: Date.now() });
+        showPixelPalMessage(`Cloud didn't get the memo on cancelling "${taskToCancel.title}". Timer might still be "active" there.`, 'info');
       }
     }
   };
@@ -428,11 +434,11 @@ export default function HomePage() {
     const tasksDueToday = tasks.filter(task => !task.isCompleted && task.dueDate === today);
 
     if (tasksDueToday.length > 0) {
-      setPixelPalMessage({ text: `Heads up, superstar! You've got ${tasksDueToday.length} quest${tasksDueToday.length > 1 ? 's' : ''} on the docket for today. Go shine!`, type: 'reminder', timestamp: Date.now() });
+      showPixelPalMessage(`Heads up, superstar! You've got ${tasksDueToday.length} quest${tasksDueToday.length > 1 ? 's' : ''} on the docket for today. Go shine!`, 'reminder');
     } else if (tasks.length > 0 && tasks.every(t => t.isCompleted || t.dueDate !== today || !t.dueDate)) {
-      setPixelPalMessage({ text: "Today's quest log: squeaky clean! Or... you haven't added any for today. Either way, you're the boss!", type: 'info', timestamp: Date.now() });
+      showPixelPalMessage("Today's quest log: squeaky clean! Or... you haven't added any for today. Either way, you're the boss!", 'info');
     }
-  }, [tasks, isLoadingProfile, isLoadingTasks]);
+  }, [tasks, isLoadingProfile, isLoadingTasks, showPixelPalMessage]);
 
   useEffect(() => {
     const reminderTimer = setTimeout(checkDueTasksAndRemind, 2000); 
@@ -492,7 +498,8 @@ export default function HomePage() {
 
         <aside className="space-y-6">
           {userProfile && <UserProfileCard userProfile={userProfile} />}
-          <PixelSprite userProfile={userProfile} message={pixelPalMessage} />
+          <PixelSprite userProfile={userProfile} message={currentPixelPalMessage} />
+          <PixelPalLog messages={pixelPalMessageLog} /> {/* Add PixelPalLog here */}
           {userProfile && <CosmeticCustomizationPanel userProfile={userProfile} onUpdateCosmetics={handleUpdateCosmetics} />}
            <Button 
             onClick={fetchAiSuggestions} 
@@ -539,7 +546,7 @@ export default function HomePage() {
                 }
                 setShowAiSuggestionsModal(false);
                 toast({title: "Suggestions Added!", description: "Pixel Pal's suggested quests are now in your list. Go get 'em!", className: "font-pixel pixel-corners"});
-                setPixelPalMessage({ text: "All suggested quests added to your list. You're unstoppable!", type: 'info', timestamp: Date.now() });
+                showPixelPalMessage("All suggested quests added to your list. You're unstoppable!", 'info');
             }}
             className="w-full font-pixel btn-pixel mt-4"
             disabled={aiSuggestions.length === 0 || isAddingTask}
@@ -558,5 +565,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
