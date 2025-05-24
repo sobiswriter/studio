@@ -14,25 +14,31 @@ import {
   orderBy,
   deleteField,
   type DocumentData,
+  type DocumentSnapshot, // Changed from QueryDocumentSnapshot for broader use
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
 
 // Helper to transform snapshot data
 const transformSnapshot = <T extends { id: string }>(
-  snapshot: QueryDocumentSnapshot<DocumentData>
+  snapshot: DocumentSnapshot<DocumentData> // Accepts DocumentSnapshot
 ): T => {
-  const data = snapshot.data();
+  // Callers (onTasksSnapshot and addTaskToDB) ensure snapshot.exists() is true.
+  const data = snapshot.data()!; 
+
+  // Create a mutable copy for processing
+  const processedData = { ...data };
+
   // Ensure timestamps are converted if they exist
-  if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-    data.createdAt = data.createdAt.toDate().getTime();
+  if (processedData.createdAt && typeof (processedData.createdAt as any).toDate === 'function') {
+    processedData.createdAt = (processedData.createdAt as any).toDate().getTime();
   }
-  if (data.startTime && typeof data.startTime.toDate === 'function') {
-    data.startTime = data.startTime.toDate().getTime();
+  if (processedData.startTime && typeof (processedData.startTime as any).toDate === 'function') {
+    processedData.startTime = (processedData.startTime as any).toDate().getTime();
   }
   return {
     id: snapshot.id,
-    ...data,
+    ...processedData, // Use the (potentially) modified data
   } as T;
 };
 
@@ -91,6 +97,7 @@ export const onTasksSnapshot = (
   const q = query(tasksCollectionRef, orderBy('createdAt', 'desc'));
 
   return onSnapshot(q, (querySnapshot) => {
+    // querySnapshot.docs provides QueryDocumentSnapshot instances, which are compatible with DocumentSnapshot
     const tasks = querySnapshot.docs.map(docSnap => transformSnapshot<Task>(docSnap));
     callback(tasks);
   }, onError);
@@ -113,11 +120,12 @@ export const addTaskToDB = async (userId: string, taskData: Omit<Task, 'id'>): P
 
 
     const docRef = await addDoc(collection(db, 'users', userId, 'tasks'), docData);
-    const addedTaskData = (await getDoc(docRef)).data(); // Fetch the data to ensure all server-side transforms (like timestamps) are included
-     if (!addedTaskData) {
-      throw new Error('Failed to fetch added task data from DB');
+    const docSnap = await getDoc(docRef); // Get the DocumentSnapshot
+     if (!docSnap.exists()) { // Check if the document exists
+      throw new Error('Failed to fetch added task data from DB: Document does not exist after add.');
     }
-    return { id: docRef.id, ...transformSnapshot<Omit<Task, 'id'>>({ id: docRef.id, ...addedTaskData } as any) } as Task;
+    // Now pass the DocumentSnapshot itself to transformSnapshot
+    return transformSnapshot<Task>(docSnap);
   } catch (error) {
     console.error("Error adding task to DB:", error);
     return null;
