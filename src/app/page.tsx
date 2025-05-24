@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Task, UserProfile, PixelPalMessage } from '@/types';
 import { AddTaskForm, type AddTaskFormValues } from '@/components/core/AddTaskForm';
 import { TaskList } from '@/components/core/TaskList';
@@ -19,9 +19,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type CalculateTaskXpOutput } from '@/ai/flows/calculate-task-xp';
 import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentInput, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
-import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesInput, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
+import { generateDailyBounties as generateDailyBountiesFlow } from '@/ai/flows/generate-daily-bounties';
+import type { GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties';
 import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES, DEFAULT_PERSONA_SETTINGS } from '@/lib/constants';
-import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle, Info } from 'lucide-react'; // Added Info
+import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun, LogOut, PlusCircle, Info } from 'lucide-react';
 import Link from 'next/link';
 
 import {
@@ -38,6 +39,7 @@ import { useAuth } from '../contexts/AuthContext'; // Changed to relative path
 import { useRouter } from 'next/navigation';
 
 const MAX_LOG_ENTRIES = 20;
+const PAL_MESSAGE_MIN_DISPLAY_MS = 6500; // 6.5 seconds
 
 export default function HomePage() {
   const { user, authLoading, logout } = useAuth();
@@ -51,6 +53,10 @@ export default function HomePage() {
 
   const [currentPixelPalMessage, setCurrentPixelPalMessage] = useState<PixelPalMessage | null>(null);
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
+  const [isPalSpeaking, setIsPalSpeaking] = useState(false);
+  const messageQueueRef = useRef<PixelPalMessage[]>([]);
+  const palSpeakerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   const [isAskPalModalOpen, setIsAskPalModalOpen] = useState(false);
   const [isLoadingAskPal, setIsLoadingAskPal] = useState(false);
@@ -62,14 +68,58 @@ export default function HomePage() {
 
   const { toast } = useToast();
 
+  const processMessageQueue = useCallback(() => {
+    if (messageQueueRef.current.length > 0) {
+      const nextMessage = messageQueueRef.current.shift();
+      if (nextMessage) {
+        setCurrentPixelPalMessage(nextMessage);
+        setIsPalSpeaking(true);
+        
+        if (palSpeakerTimeoutRef.current) {
+          clearTimeout(palSpeakerTimeoutRef.current);
+        }
+        palSpeakerTimeoutRef.current = setTimeout(() => {
+          setIsPalSpeaking(false);
+          processMessageQueue(); 
+        }, PAL_MESSAGE_MIN_DISPLAY_MS);
+      }
+    } else {
+      setIsPalSpeaking(false); 
+    }
+  }, []);
+
   const showPixelPalMessage = useCallback((text: string, type: PixelPalMessage['type']) => {
     const newMessage: PixelPalMessage = { text, type, timestamp: Date.now() };
-    setCurrentPixelPalMessage(newMessage);
+    
     setPixelPalMessageLog(prevLog => {
-        const updatedLog = [newMessage, ...prevLog];
-        return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
+      const updatedLog = [newMessage, ...prevLog];
+      return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
     });
+
+    if (!isPalSpeaking) {
+      setCurrentPixelPalMessage(newMessage);
+      setIsPalSpeaking(true);
+
+      if (palSpeakerTimeoutRef.current) {
+        clearTimeout(palSpeakerTimeoutRef.current);
+      }
+      palSpeakerTimeoutRef.current = setTimeout(() => {
+        setIsPalSpeaking(false);
+        processMessageQueue();
+      }, PAL_MESSAGE_MIN_DISPLAY_MS);
+    } else {
+      messageQueueRef.current.push(newMessage);
+    }
+  }, [isPalSpeaking, processMessageQueue]);
+
+  useEffect(() => {
+    return () => {
+      if (palSpeakerTimeoutRef.current) {
+        clearTimeout(palSpeakerTimeoutRef.current);
+      }
+    };
   }, []);
+
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
 
@@ -145,7 +195,6 @@ export default function HomePage() {
       if (profileData) {
         setUserProfile(profileData);
       } else {
-        // New user, create profile
         const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS)) 
                                 ? INITIAL_PAL_CREDITS 
                                 : 0; 
@@ -347,7 +396,7 @@ export default function HomePage() {
             messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info'; 
           } else if (originalTask.timerId !== undefined && !originalTask.isBounty) { 
-            messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
+             messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
           } else if (originalTask.timerId === undefined && !originalTask.isBounty) { 
              messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
           }
@@ -548,8 +597,11 @@ export default function HomePage() {
       return;
     }
     
-    // Optimistically update local state for smoother UX, Firebase listener will eventually confirm
-    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null); 
+    // Optimistically update local state for palCredits, but the onSnapshot listener for userProfile
+    // will eventually provide the source of truth from Firebase.
+    // It's fine to update here for immediate UI feedback if needed,
+    // but ensure it doesn't conflict with onSnapshot.
+    // For now, let's rely on onSnapshot to update userProfile which includes palCredits.
 
     try {
       const persona = userProfile.palPersona || DEFAULT_PERSONA_SETTINGS;
@@ -811,7 +863,7 @@ export default function HomePage() {
             onDeleteTask={handleDeleteTask}
             onStartQuest={handleStartQuest}
           />
-
+          
           <DailyBountyList
             activeBounties={activeDailyBounties}
             completedBounties={completedDailyBounties}
@@ -831,7 +883,7 @@ export default function HomePage() {
         </section>
 
         <aside className="space-y-6">
-          {userProfile && <UserProfileCard userProfile={userProfile} onLogout={handleLogout} />}
+          {userProfile && <UserProfileCard userProfile={userProfile} />}
           <PixelSprite userProfile={userProfile} message={currentPixelPalMessage} />
           <PixelPalLog messages={pixelPalMessageLog} />
           {userProfile && <PalSettingsPanel userProfile={userProfile} onUpdatePalSettings={handleUpdatePalSettings} />}
@@ -870,3 +922,5 @@ export default function HomePage() {
   );
 }
 
+
+    
