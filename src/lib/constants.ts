@@ -16,7 +16,7 @@ export const LEVEL_THRESHOLDS = [
 ];
 
 export const PAL_COLORS: { id: string; name: string; imageUrl: string; dataAiHint: string }[] = [
-  { id: 'default', name: 'Default (Purple)', imageUrl: 'https://drive.google.com/uc?export=view&id=1MSiI_tAarxp3sgXY9_7J2uc6OPNEzRA8', dataAiHint: 'pixel wizard purple' },
+  { id: 'default', name: 'Default', imageUrl: 'https://drive.google.com/uc?export=view&id=1MSiI_tAarxp3sgXY9_7J2uc6OPNEzRA8', dataAiHint: 'pixel wizard purple' },
   { id: 'rose', name: 'Rose', imageUrl: 'https://drive.google.com/uc?export=view&id=1oJJYGrqvqKmYdpKDOtfFUxA0XbIePo77', dataAiHint: 'pixel wizard rose' },
   { id: 'sky', name: 'Sky', imageUrl: 'https://drive.google.com/uc?export=view&id=1dJ0BXsOZT-tFPe5cdOqeQ3r3_77JIDon', dataAiHint: 'pixel wizard skyblue' },
   { id: 'forest', name: 'Forest', imageUrl: 'https://drive.google.com/uc?export=view&id=1r8Kr0OKuRi5pLU0WK1pU308nWFowAWQq', dataAiHint: 'pixel wizard green' },
@@ -44,5 +44,4 @@ export const DEFAULT_PERSONA_SETTINGS = {
 // For Pixel Pal message typing effect
 export const TYPING_SPEED_MS = 50; // Milliseconds per character
 export const POST_TYPING_PAUSE_MS = 2500; // Milliseconds to pause after typing
-export const INITIAL_AI_WELCOME_DELAY_MS = 3000; // Milliseconds to delay initial AI welcome
-
+export const INITIAL_AI_WELCOME_DELAY_MS = 7000; // Milliseconds to delay initial AI welcome (increased from 3000 to 7000)
