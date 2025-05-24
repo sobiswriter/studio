@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI flow that calculates XP for a given task.
@@ -47,10 +48,8 @@ Guidelines for XP assignment:
 
 Task Details:
 Title: {{{taskTitle}}}
-{{#if taskDuration}}
-{{#if (this.taskDuration > 0)}}
+{{#if taskDuration}} {{! This block will render if taskDuration is provided and is a positive number }}
 Duration: {{{taskDuration}}} minutes
-{{/if}}
 {{/if}}
 `,
 });
@@ -70,3 +69,4 @@ const calculateTaskXpFlow = ai.defineFlow(
     return output;
   }
 );
+
