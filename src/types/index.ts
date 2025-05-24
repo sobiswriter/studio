@@ -10,6 +10,9 @@ export interface Task {
   startTime?: number; // Timestamp of when the task was started
   timerId?: number; // ID of the setTimeout for the timer
   xp?: number; // Experience points for completing the task
+  isBounty?: boolean; // True if this task is a daily bounty
+  bountyPalCredits?: number; // Pal Credits awarded for completing a bounty
+  bountyGenerationDate?: string; // YYYY-MM-DD, when the bounty was generated
 }
 
 export interface CosmeticItem {
@@ -31,10 +34,11 @@ export interface UserProfile {
     color: string; // ID of the color cosmetic item
   };
   unlockedCosmetics: string[]; // Array of cosmetic item IDs
+  lastBountiesGeneratedDate?: string; // YYYY-MM-DD
 }
 
 export interface PixelPalMessage {
   text: string;
-  type: 'greeting' | 'encouragement' | 'reminder' | 'suggestion' | 'info' | 'askPalResponse'; // Added 'askPalResponse'
+  type: 'greeting' | 'encouragement' | 'reminder' | 'suggestion' | 'info' | 'askPalResponse';
   timestamp: number;
 }

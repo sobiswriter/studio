@@ -10,6 +10,7 @@ import { PixelSprite } from '@/components/core/PixelSprite';
 import { UserProfileCard } from '@/components/core/UserProfileCard';
 import { EditTaskModal } from '@/components/core/EditTaskModal';
 import { AskPalModal } from '@/components/core/AskPalModal';
+import { DailyBountyList } from '@/components/core/DailyBountyList'; // New
 import { CosmeticCustomizationPanel } from '@/components/core/CosmeticCustomizationPanel';
 import { AnimatedCompletion } from '@/components/core/AnimatedCompletion';
 import { PixelPalLog } from '@/components/core/PixelPalLog';
@@ -18,8 +19,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { calculateTaskXp as calculateTaskXpFlow, type CalculateTaskXpInput, type CalculateTaskXpOutput } from '@/ai/flows/calculate-task-xp';
 import { getPalSarcasticComment as getPalSarcasticCommentFlow, type PalSarcasticCommentInput, type PalSarcasticCommentOutput } from '@/ai/flows/pal-sarcastic-comment-flow';
-import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, HATS, ACCESSORIES, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST } from '@/lib/constants';
-import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion } from 'lucide-react';
+import { generateDailyBounties as generateDailyBountiesFlow, type GenerateDailyBountiesInput, type GenerateDailyBountiesOutput } from '@/ai/flows/generate-daily-bounties'; // New
+import { XP_PER_TASK, LEVEL_THRESHOLDS, MAX_LEVEL, INITIAL_UNLOCKED_COSMETICS, HATS, ACCESSORIES, PAL_COLORS, INITIAL_PAL_CREDITS, CREDITS_PER_LEVEL_UP, BONUS_CREDITS_PER_5_LEVELS, ASK_PAL_COST, BOUNTY_XP_REWARD, BOUNTY_CREDITS_REWARD, NUM_DAILY_BOUNTIES } from '@/lib/constants';
+import { Award, Lightbulb, Zap, Loader2, CloudCog, MessageCircleQuestion, Sun } from 'lucide-react';
 import {
   onUserProfileSnapshot,
   createUserProfileInDB,
@@ -28,11 +30,11 @@ import {
   addTaskToDB,
   updateTaskInDB,
   deleteTaskFromDB,
-} from '../services/firestoreService'; // Using relative path
+} from '../services/firestoreService';
 import type { Unsubscribe } from 'firebase/firestore';
 
 const SIMULATED_USER_ID = 'simulated-user-123';
-const MAX_LOG_ENTRIES = 20; // Applies to each log section if separated, or total if combined
+const MAX_LOG_ENTRIES = 20;
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -50,14 +52,67 @@ export default function HomePage() {
   const [isSavingTask, setIsSavingTask] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+  const [isGeneratingBounties, setIsGeneratingBounties] = useState(false); // New
 
   const { toast } = useToast();
 
   const showPixelPalMessage = useCallback((text: string, type: PixelPalMessage['type']) => {
     const newMessage: PixelPalMessage = { text, type, timestamp: Date.now() };
     setCurrentPixelPalMessage(newMessage);
-    setPixelPalMessageLog(prevLog => [newMessage, ...prevLog].slice(0, MAX_LOG_ENTRIES * 2)); // Increase total capacity if log is split
+    setPixelPalMessageLog(prevLog => [newMessage, ...prevLog].slice(0, MAX_LOG_ENTRIES * 2));
   }, []);
+
+  const getTodayString = () => new Date().toISOString().split('T')[0];
+
+  // --- Bounty Generation ---
+  const handleGenerateDailyBounties = useCallback(async () => {
+    if (!userProfile || isGeneratingBounties) return;
+
+    const todayStr = getTodayString();
+    if (userProfile.lastBountiesGeneratedDate === todayStr) {
+      showPixelPalMessage("Today's bounties are already set, hero!", 'info');
+      return;
+    }
+
+    setIsGeneratingBounties(true);
+    showPixelPalMessage("Pixel Pal is brewing up some fresh daily bounties... Hang tight!", 'info');
+    try {
+      const aiResult: GenerateDailyBountiesOutput = await generateDailyBountiesFlow({});
+      
+      if (!aiResult || !aiResult.bounties || aiResult.bounties.length === 0) {
+        showPixelPalMessage("Pal's bounty generator seems to be on a coffee break. Try again in a bit!", 'info');
+        setIsGeneratingBounties(false);
+        return;
+      }
+
+      const bountyPromises = aiResult.bounties.slice(0, NUM_DAILY_BOUNTIES).map(bountyDef => {
+        const newBounty: Omit<Task, 'id'> = {
+          title: bountyDef.title,
+          duration: bountyDef.duration,
+          isCompleted: false,
+          createdAt: Date.now(),
+          isBounty: true,
+          xp: BOUNTY_XP_REWARD,
+          bountyPalCredits: BOUNTY_CREDITS_REWARD,
+          bountyGenerationDate: todayStr,
+          isStarted: false,
+        };
+        return addTaskToDB(SIMULATED_USER_ID, newBounty);
+      });
+
+      await Promise.all(bountyPromises); // Wait for all bounties to be added
+
+      await updateUserProfileData(SIMULATED_USER_ID, { lastBountiesGeneratedDate: todayStr });
+      showPixelPalMessage(`Alright! ${NUM_DAILY_BOUNTIES} new Daily Bounties are up on the board. Go get 'em for sweet XP and Pal Credits!`, 'suggestion');
+
+    } catch (error) {
+      console.error("Error generating daily bounties:", error);
+      toast({ title: "Bounty Error", description: "Could not generate daily bounties.", variant: "destructive", className: "font-pixel pixel-corners" });
+      showPixelPalMessage("Yikes! The bounty board fell over. Couldn't summon new bounties.", 'info');
+    } finally {
+      setIsGeneratingBounties(false);
+    }
+  }, [userProfile, isGeneratingBounties, showPixelPalMessage, toast]);
 
 
   // --- Firestore Listeners & Initialization ---
@@ -67,6 +122,12 @@ export default function HomePage() {
     const unsubProfile = onUserProfileSnapshot(SIMULATED_USER_ID, (profileData) => {
       if (profileData) {
         setUserProfile(profileData);
+        // Check if bounties need to be generated
+        const todayStr = getTodayString();
+        if (profileData.lastBountiesGeneratedDate !== todayStr && !isGeneratingBounties) {
+           // Call handleGenerateDailyBounties indirectly to use the fresh profileData
+           // This will be triggered again if profileData updates, so the condition prevents loops
+        }
       } else {
         const initialProfile: UserProfile = {
           uid: SIMULATED_USER_ID,
@@ -79,10 +140,12 @@ export default function HomePage() {
             color: PAL_COLORS.find(c => c.id === 'default')?.id || 'default',
           },
           unlockedCosmetics: INITIAL_UNLOCKED_COSMETICS,
+          lastBountiesGeneratedDate: '', // Initialize
         };
         createUserProfileInDB(SIMULATED_USER_ID, initialProfile).then(() => {
           setUserProfile(initialProfile);
           showPixelPalMessage(`New hero profile set up in the cloud! Welcome aboard! You start with ${INITIAL_PAL_CREDITS} Pal Credit(s)!`, 'info');
+           // Bounties will be generated on next profile load by the effect below
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
           showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later.", 'info');
@@ -102,7 +165,8 @@ export default function HomePage() {
         isStarted: task.isStarted ?? false,
         startTime: task.startTime,
         timerId: undefined,
-        xp: task.xp ?? XP_PER_TASK,
+        xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? XP_PER_TASK),
+        bountyPalCredits: task.isBounty ? BOUNTY_CREDITS_REWARD : undefined,
       }));
       setTasks(loadedTasks);
       setIsLoadingTasks(false);
@@ -120,8 +184,19 @@ export default function HomePage() {
         if (task.timerId) clearTimeout(task.timerId);
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // isGeneratingBounties removed from deps
+
+  // Effect to trigger bounty generation when profile is loaded/updated
+  useEffect(() => {
+    if (userProfile && !isLoadingProfile && !isGeneratingBounties) {
+      const todayStr = getTodayString();
+      if (userProfile.lastBountiesGeneratedDate !== todayStr) {
+        handleGenerateDailyBounties();
+      }
+    }
+  }, [userProfile, isLoadingProfile, isGeneratingBounties, handleGenerateDailyBounties]);
+
 
   // --- Task Management ---
   const handleAddTask = async (newTaskData: AddTaskFormValues) => {
@@ -155,6 +230,7 @@ export default function HomePage() {
         createdAt: Date.now(),
         isStarted: false,
         xp: taskXp,
+        isBounty: false, // Regular tasks are not bounties
       };
 
       const addedTask = await addTaskToDB(SIMULATED_USER_ID, newTask);
@@ -187,6 +263,8 @@ export default function HomePage() {
 
     const taskTitleForMessage = originalTask.title;
     const completedTaskXp = originalTask.xp ?? XP_PER_TASK;
+    const completedBountyCredits = originalTask.isBounty ? (originalTask.bountyPalCredits ?? BOUNTY_CREDITS_REWARD) : 0;
+
 
     if (originalTask.timerId && isCompletedParam) {
       clearTimeout(originalTask.timerId);
@@ -196,7 +274,7 @@ export default function HomePage() {
       isCompleted: isCompletedParam,
       isStarted: isCompletedParam ? false : originalTask.isStarted,
       startTime: isCompletedParam ? undefined : originalTask.startTime,
-      timerId: undefined, // Always clear timerId from DB if completing/uncompleting
+      timerId: undefined,
     };
 
     let profileUpdateData: Partial<UserProfile> | null = null;
@@ -210,16 +288,17 @@ export default function HomePage() {
       const newXP = currentSafeXP + completedTaskXp;
       let newLevel = userProfile.level;
 
-      let currentPalCredits = userProfile.palCredits ?? INITIAL_PAL_CREDITS;
-      let newPalCredits = currentPalCredits;
+      let currentPalCredits = userProfile.palCredits ?? 0;
+      let newPalCredits = currentPalCredits + completedBountyCredits; // Add bounty credits here
 
       const unlockedCosmetics = [...(userProfile.unlockedCosmetics || INITIAL_UNLOCKED_COSMETICS)];
 
       while (newLevel < MAX_LEVEL && newXP >= LEVEL_THRESHOLDS[newLevel]) {
         newLevel++;
         leveledUp = true;
-        newPalCredits += CREDITS_PER_LEVEL_UP;
-        creditsGainedOnLevelUp += CREDITS_PER_LEVEL_UP;
+        const levelUpCreditGain = CREDITS_PER_LEVEL_UP;
+        newPalCredits += levelUpCreditGain;
+        creditsGainedOnLevelUp += levelUpCreditGain;
 
         if (newLevel % 5 === 0) {
           newPalCredits += BONUS_CREDITS_PER_5_LEVELS;
@@ -242,7 +321,9 @@ export default function HomePage() {
 
     if (dbSuccess) {
       if (isCompletedParam) {
-        let messageText = `Woohoo! "${taskTitleForMessage}" conquered! +${completedTaskXp} XP! You're on a roll!`;
+        let messageText = originalTask.isBounty
+          ? `Bounty "${taskTitleForMessage}" crushed! +${completedTaskXp} XP & +${completedBountyCredits} Pal Credits! Epic!`
+          : `Woohoo! "${taskTitleForMessage}" conquered! +${completedTaskXp} XP! You're on a roll!`;
         let messageType: PixelPalMessage['type'] = 'encouragement';
 
         const wasActive = originalTask.isStarted === true;
@@ -250,13 +331,13 @@ export default function HomePage() {
         if (wasActive && originalTask.startTime && typeof originalTask.duration === 'number') {
           const elapsedTimeMs = Date.now() - originalTask.startTime;
           const totalDurationMs = originalTask.duration * 60 * 1000;
-          if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined) {
+          if (elapsedTimeMs < totalDurationMs * 0.25 && originalTask.timerId !== undefined && !originalTask.isBounty) { // Sarcasm not for bounties
             messageText = `"${taskTitleForMessage}", huh? Finished *real* quick. Did you just... blink? 😉 (+${completedTaskXp} XP, I guess!)`;
             messageType = 'info';
-          } else if (originalTask.timerId !== undefined) { // Skipped by user
+          } else if (originalTask.timerId !== undefined && !originalTask.isBounty) {
             messageText = `Quest "${taskTitleForMessage}" timer skipped! Strategic. +${completedTaskXp} XP!`;
           } else if (originalTask.timerId === undefined) { // Auto-completed by timer
-            messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! Quest auto-completed! +${completedTaskXp} XP! Nice one!`;
+             messageText = `Beep boop! Timer for "${taskTitleForMessage}" is UP! ${originalTask.isBounty ? 'Bounty' : 'Quest'} auto-completed! +${completedTaskXp} XP${originalTask.isBounty ? ` & +${completedBountyCredits} Pal Credits` : ''}! Nice one!`;
           }
         }
         showPixelPalMessage(messageText, messageType);
@@ -281,7 +362,7 @@ export default function HomePage() {
           }, 200);
         }
       } else {
-        showPixelPalMessage(`Quest "${taskTitleForMessage}" is back on the list. No worries!`, 'info');
+         showPixelPalMessage(`${originalTask.isBounty ? 'Bounty' : 'Quest'} "${taskTitleForMessage}" is back on the list. No worries!`, 'info');
       }
     } else {
       showPixelPalMessage(`Cloud sync for "${taskTitleForMessage}" went sideways. Changes might not stick.`, 'info');
@@ -290,6 +371,11 @@ export default function HomePage() {
   };
 
   const handleEditTask = (taskToEdit: Task) => {
+    if (taskToEdit.isBounty) {
+        toast({ title: "Bounties Unchanged!", description: "Daily Bounties are sacred and cannot be edited, hero!", className: "font-pixel pixel-corners" });
+        showPixelPalMessage("Hold up! Daily Bounties are fixed challenges from the Pal-verse. No edits allowed!", 'info');
+        return;
+    }
     if (taskToEdit.isStarted) {
       toast({ title: "Active Quest", description: "Cannot edit a quest while its timer is running. Too intense!", className: "font-pixel pixel-corners" });
       showPixelPalMessage(`Whoa there! Can't edit "${taskToEdit.title}" while it's an active quest. Finish or cancel it first!`, 'info');
@@ -314,7 +400,7 @@ export default function HomePage() {
       let finalTask = { ...updatedTaskData };
       const originalTask = tasks.find(t => t.id === updatedTaskData.id);
 
-      if (originalTask && (originalTask.title !== updatedTaskData.title || originalTask.duration !== updatedTaskData.duration)) {
+      if (originalTask && (originalTask.title !== updatedTaskData.title || originalTask.duration !== updatedTaskData.duration) && !finalTask.isBounty) {
         showPixelPalMessage(`Recalculating XP for "${updatedTaskData.title}"... one sec!`, 'info');
         const xpInput: CalculateTaskXpInput = {
           taskTitle: updatedTaskData.title,
@@ -325,7 +411,7 @@ export default function HomePage() {
         showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
       }
 
-      const { timerId, ...taskToSave } = finalTask; // Ensure timerId is not directly saved to DB
+      const { timerId, ...taskToSave } = finalTask;
       const success = await updateTaskInDB(SIMULATED_USER_ID, taskToSave.id, taskToSave);
       if (success) {
         showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
@@ -350,6 +436,11 @@ export default function HomePage() {
   const handleDeleteTask = async (taskId: string) => {
     const taskToDelete = tasks.find(t => t.id === taskId);
     if (taskToDelete) {
+      if (taskToDelete.isBounty) {
+        toast({ title: "No Deleting Bounties!", description: "Daily Bounties are fixed challenges, hero! They reset tomorrow.", className: "font-pixel pixel-corners" });
+        showPixelPalMessage("Hey, those Daily Bounties are special! Can't delete 'em. They'll refresh tomorrow!", 'info');
+        return;
+      }
       if (taskToDelete.timerId) {
         clearTimeout(taskToDelete.timerId);
       }
@@ -408,23 +499,25 @@ export default function HomePage() {
     setIsLoadingAskPal(true);
     showPixelPalMessage(`You asked: "${userQuery}"... Hmm, let me ponder that for a nanosecond!`, 'info');
 
-
-    const newCredits = currentPalCredits - ASK_PAL_COST;
+    const newCredits = Math.max(0, currentPalCredits - ASK_PAL_COST); // Ensure credits don't go negative
     const creditUpdateSuccess = await updateUserProfileData(SIMULATED_USER_ID, { palCredits: newCredits });
 
     if (!creditUpdateSuccess) {
       showPixelPalMessage("Hmm, my circuits hiccuped trying to use your credit. Try again in a bit?", 'info');
       toast({ title: "Credit Error", description: "Could not use Pal Credit. Please try again.", variant: "destructive", className: "font-pixel pixel-corners" });
       setIsLoadingAskPal(false);
-      setIsAskPalModalOpen(false);
+      // setIsAskPalModalOpen(false); // Keep modal open if credit deduction failed
       return;
     }
+     // If credit deduction was successful, optimistically update local state
+    setUserProfile(prev => prev ? {...prev, palCredits: newCredits} : null);
+
 
     try {
       const aiInput: PalSarcasticCommentInput = { userQuery };
       const result: PalSarcasticCommentOutput = await getPalSarcasticCommentFlow(aiInput);
       if (result.comment) {
-        showPixelPalMessage(result.comment, 'askPalResponse'); // Use new type
+        showPixelPalMessage(result.comment, 'askPalResponse');
       } else {
         showPixelPalMessage("My joke generator seems to be on vacation. Ask me later!", 'info');
       }
@@ -437,9 +530,12 @@ export default function HomePage() {
         variant: "destructive",
         className: "font-pixel pixel-corners",
       });
+       // Rollback credit if AI call failed (optional, or inform user)
+       // await updateUserProfileData(SIMULATED_USER_ID, { palCredits: currentPalCredits });
+       // showPixelPalMessage("Hold up, that AI call fizzled. I've refunded your credit for now!", 'info');
     } finally {
       setIsLoadingAskPal(false);
-      setIsAskPalModalOpen(false);
+      setIsAskPalModalOpen(false); // Close modal after response or error
     }
   };
 
@@ -450,9 +546,8 @@ export default function HomePage() {
       const timerDurationMs = taskToStart.duration * 60 * 1000;
 
       const newTimerId = setTimeout(() => {
-        // Remove timerId from local state first to prevent race condition
         setTasks(prevTasks => prevTasks.map(t =>
-            t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t // Mark as not started before completing
+            t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t
         ));
         handleToggleComplete(taskId, true);
       }, timerDurationMs) as unknown as number;
@@ -488,7 +583,7 @@ export default function HomePage() {
           ? { ...t, isStarted: false, timerId: undefined, startTime: undefined }
           : t
       ));
-      const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: false, startTime: undefined, timerId: undefined });
+      const success = await updateTaskInDB(SIMULATED_USER_ID, taskId, { isStarted: false, startTime: undefined, timerId: undefined }); // Ensure timerId is cleared in DB
       if (success) {
         showPixelPalMessage(`Quest "${taskToCancel.title}" timer paused. Taking a strategic break, eh?`, 'info');
       } else {
@@ -507,7 +602,6 @@ export default function HomePage() {
      if (taskToSkip && taskToSkip.timerId) {
       clearTimeout(taskToSkip.timerId);
     }
-    // Update local state immediately to stop timer and then toggle complete
     setTasks(prevTasks => prevTasks.map(t =>
         t.id === taskId ? { ...t, timerId: undefined, isStarted: false, startTime: undefined } : t
     ));
@@ -517,13 +611,13 @@ export default function HomePage() {
   const checkDueTasksAndRemind = useCallback(() => {
     if (isLoadingProfile || isLoadingTasks || !tasks.length) return;
 
-    const today = new Date().toISOString().split('T')[0];
-    const tasksDueToday = tasks.filter(task => !task.isCompleted && task.dueDate === today);
+    const today = getTodayString();
+    const dueNonBountyTasks = tasks.filter(task => !task.isBounty && !task.isCompleted && task.dueDate === today);
 
-    if (tasksDueToday.length > 0) {
-      showPixelPalMessage(`Heads up, superstar! You've got ${tasksDueToday.length} quest${tasksDueToday.length > 1 ? 's' : ''} on the docket for today. Go shine!`, 'reminder');
-    } else if (tasks.length > 0 && tasks.every(t => t.isCompleted || t.dueDate !== today || !t.dueDate)) {
-      showPixelPalMessage("Today's quest log: squeaky clean! Or... you haven't added any for today. Either way, you're the boss!", 'info');
+    if (dueNonBountyTasks.length > 0) {
+      showPixelPalMessage(`Heads up, superstar! You've got ${dueNonBountyTasks.length} quest${dueNonBountyTasks.length > 1 ? 's' : ''} on the docket for today. Go shine!`, 'reminder');
+    } else if (tasks.filter(t => !t.isBounty).length > 0 && tasks.filter(t => !t.isBounty).every(t => t.isCompleted || t.dueDate !== today || !t.dueDate)) {
+      showPixelPalMessage("Today's regular quest log: squeaky clean! Or... you haven't added any for today. Either way, you're the boss!", 'info');
     }
   }, [tasks, isLoadingProfile, isLoadingTasks, showPixelPalMessage]);
 
@@ -532,9 +626,13 @@ export default function HomePage() {
     return () => clearTimeout(reminderTimer);
   }, [checkDueTasksAndRemind]);
 
+  const todayString = getTodayString();
+  const activeQuestsAndBounties = tasks.filter(task => task.isStarted && !task.isCompleted);
+  const availableTasksForList = tasks.filter(task => !task.isBounty); // Regular tasks for main list
 
-  const activeQuests = tasks.filter(task => task.isStarted && !task.isCompleted);
-  const availableTasksForList = tasks;
+  const activeDailyBounties = tasks.filter(task => task.isBounty && task.bountyGenerationDate === todayString && !task.isCompleted && !task.isStarted);
+  const completedDailyBounties = tasks.filter(task => task.isBounty && task.bountyGenerationDate === todayString && task.isCompleted);
+
 
   if (isLoadingProfile || isLoadingTasks) {
     return (
@@ -556,13 +654,21 @@ export default function HomePage() {
         <section className="md:col-span-2 space-y-6">
           <AddTaskForm onAddTask={handleAddTask} isAdding={isAddingTask} />
 
-          {activeQuests.length > 0 && (
+          <DailyBountyList
+            activeBounties={activeDailyBounties}
+            completedBounties={completedDailyBounties}
+            onStartQuest={handleStartQuest}
+            onToggleComplete={handleToggleComplete}
+            isLoading={isGeneratingBounties}
+          />
+
+          {activeQuestsAndBounties.length > 0 && (
             <Card className="pixel-corners border-2 border-primary shadow-[4px_4px_0px_hsl(var(--primary))]">
               <CardHeader>
-                <CardTitle className="font-pixel flex items-center gap-2 text-primary"><Zap size={20} /> Active Quests</CardTitle>
+                <CardTitle className="font-pixel flex items-center gap-2 text-primary"><Zap size={20} /> Active Challenges</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {activeQuests.map(task => (
+                {activeQuestsAndBounties.map(task => (
                   <ActiveQuestItem
                     key={task.id}
                     task={task}
@@ -590,7 +696,7 @@ export default function HomePage() {
           {userProfile && <CosmeticCustomizationPanel userProfile={userProfile} onUpdateCosmetics={handleUpdateCosmetics} />}
           <Button
             onClick={openAskPalModalHandler}
-            disabled={!userProfile || (userProfile.palCredits ?? 0) < ASK_PAL_COST}
+            disabled={!userProfile || (userProfile.palCredits ?? 0) < ASK_PAL_COST || isLoadingAskPal}
             className="w-full font-pixel btn-pixel flex items-center justify-center gap-2"
           >
             <MessageCircleQuestion size={18} />

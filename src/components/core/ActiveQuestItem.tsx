@@ -4,14 +4,14 @@
 import type { Task } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { TimerIcon, XCircle, FastForward } from 'lucide-react'; // Added FastForward
+import { TimerIcon, XCircle, FastForward } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ActiveQuestItemProps {
   task: Task;
   onCancelQuest: (taskId: string) => void;
-  onSkipQuest: (taskId: string) => void; // New prop
+  onSkipQuest: (taskId: string) => void;
 }
 
 const formatTime = (totalSeconds: number): string => {
@@ -35,18 +35,16 @@ export function ActiveQuestItem({ task, onCancelQuest, onSkipQuest }: ActiveQues
 
   useEffect(() => {
     if (!task.isStarted || task.isCompleted) {
-      setRemainingTime(0); 
+      setRemainingTime(0);
       return;
     }
 
-    setRemainingTime(calculateRemainingTime()); // Recalculate on relevant task prop changes
+    setRemainingTime(calculateRemainingTime());
 
     const intervalId = setInterval(() => {
       setRemainingTime(prevTime => {
         if (prevTime <= 1) {
           clearInterval(intervalId);
-          // The auto-completion is handled by the timeout in page.tsx
-          // We just stop the local interval here.
           return 0;
         }
         return prevTime - 1;
@@ -63,31 +61,42 @@ export function ActiveQuestItem({ task, onCancelQuest, onSkipQuest }: ActiveQues
 
   return (
     <Card className={cn(
-        "flex items-center justify-between p-3 rounded-md border-2 border-primary bg-card transition-all duration-200 pixel-corners shadow-[2px_2px_0px_hsl(var(--primary))] mb-2"
+        "flex items-center justify-between p-3 rounded-md border-2 border-primary bg-card transition-all duration-200 pixel-corners shadow-[2px_2px_0px_hsl(var(--primary))] mb-2",
+        task.isBounty && "border-amber-500 shadow-[2px_2px_0px_hsl(var(--amber-500))] bg-amber-50" // Specific styling for active bounties
       )}>
       <div className="flex-grow">
-        <p className="font-pixel text-base text-primary">{task.title}</p>
-        <div className="flex items-center gap-1 text-sm text-primary/90 mt-1">
+        <p className={cn(
+            "font-pixel text-base text-primary",
+            task.isBounty && "text-amber-700"
+          )}>
+            {task.isBounty ? `BOUNTY: ${task.title}` : task.title}
+        </p>
+        <div className={cn(
+            "flex items-center gap-1 text-sm text-primary/90 mt-1",
+             task.isBounty && "text-amber-600/90"
+          )}>
           <TimerIcon size={16} />
           <span className="font-pixel">{formatTime(remainingTime)}</span>
         </div>
       </div>
       <div className="flex gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onSkipQuest(task.id)}
-          className="w-8 h-8 p-1 hover:bg-accent/20 active:bg-accent/40"
-          aria-label={`Skip timer for quest ${task.title}`}
-        >
-          <FastForward size={18} className="text-accent" />
-        </Button>
+        {!task.isBounty && ( // Hide Skip button for bounties
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onSkipQuest(task.id)}
+            className="w-8 h-8 p-1 hover:bg-accent/20 active:bg-accent/40"
+            aria-label={`Skip timer for quest ${task.title}`}
+          >
+            <FastForward size={18} className="text-accent" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => onCancelQuest(task.id)}
           className="w-8 h-8 p-1 hover:bg-destructive/20 active:bg-destructive/40"
-          aria-label={`Cancel quest ${task.title}`}
+          aria-label={`Cancel ${task.isBounty ? 'bounty' : 'quest'} ${task.title}`}
         >
           <XCircle size={18} className="text-destructive" />
         </Button>

@@ -45,7 +45,11 @@ export const INITIAL_UNLOCKED_COSMETICS = [
 
 export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
 
-export const INITIAL_PAL_CREDITS = 5; // Updated
-export const CREDITS_PER_LEVEL_UP = 20; // Updated
-export const BONUS_CREDITS_PER_5_LEVELS = 25; // New
+export const INITIAL_PAL_CREDITS = 5;
+export const CREDITS_PER_LEVEL_UP = 20;
+export const BONUS_CREDITS_PER_5_LEVELS = 25;
 export const ASK_PAL_COST = 1;
+
+export const BOUNTY_XP_REWARD = 25;
+export const BOUNTY_CREDITS_REWARD = 5;
+export const NUM_DAILY_BOUNTIES = 5;
