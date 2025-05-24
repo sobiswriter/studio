@@ -49,8 +49,13 @@ export default function LoginPage() {
       await loginWithGoogle();
       router.push('/'); // Redirect on successful Google sign-in
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in with Google. Please try again.');
-      console.error("Google Sign-in error:", err);
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+        setError('Google Sign-In popup was blocked or cancelled. Please check your browser settings (disable popup blockers for this site) and try again.');
+        console.error("Google Sign-in popup blocked or cancelled:", err);
+      } else {
+        setError(err.message || 'Failed to sign in with Google. Please try again.');
+        console.error("Google Sign-in error:", err);
+      }
     } finally {
       setIsGoogleLoading(false);
     }
