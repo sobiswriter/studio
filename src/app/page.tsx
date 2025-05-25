@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback }
+from 'react';
 import type { Task, UserProfile, PixelPalMessage } from '@/types';
 import { AddTaskForm, type AddTaskFormValues } from '@/components/core/AddTaskForm';
 import { TaskList } from '@/components/core/TaskList';
@@ -59,7 +60,7 @@ export default function HomePage() {
   const [pixelPalMessageLog, setPixelPalMessageLog] = useState<PixelPalMessage[]>([]);
 
   const [isAskPalModalOpen, setIsAskPalModalOpen] = useState(false);
-  const [isLoadingAskPal, setIsLoadingAskPal] = useState(false); // This state is for the AskPalModal query processing
+  const [isLoadingAskPal, setIsLoadingAskPal] = useState(false); // For AskPalModal query processing
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isSavingTask, setIsSavingTask] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -68,18 +69,18 @@ export default function HomePage() {
   const [isGeneratingStatusComment, setIsGeneratingStatusComment] = useState(false);
   const [initialAiWelcomeFired, setInitialAiWelcomeFired] = useState(false);
 
-
   const { toast } = useToast();
 
+  // No more currentPixelPalMessage, messageQueue, isPalDisplaySlotActive, displayTimeoutRef
+  // The PixelSprite is now purely visual, PixelPalLog handles all message display history.
+
   const showPixelPalMessage = (text: string, type: PixelPalMessage['type']) => {
-    const newMessage: PixelPalMessage = { text: text || "...", type, timestamp: Date.now() + Math.random() }; // Added Math.random for hyper-uniqueness
+    const newMessage: PixelPalMessage = { text: text || "...", type, timestamp: Date.now() + Math.random() };
     setPixelPalMessageLog(prevLog => {
       const updatedLog = [newMessage, ...prevLog];
       return updatedLog.length > MAX_LOG_ENTRIES ? updatedLog.slice(0, MAX_LOG_ENTRIES) : updatedLog;
     });
-    // The PixelSprite component is removed, so no need to update currentPixelPalMessage for speech bubble
   };
-
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
 
@@ -90,7 +91,7 @@ export default function HomePage() {
   }, [user, authLoading, router]);
 
 
-  const handleGenerateDailyBounties = async () => {
+  const handleGenerateDailyBounties = useCallback(async () => {
     if (!user?.uid || !userProfile || isGeneratingBounties) return;
 
     const todayStr = getTodayString();
@@ -137,7 +138,7 @@ export default function HomePage() {
     } finally {
       setIsGeneratingBounties(false);
     }
-  };
+  }, [user?.uid, userProfile, isGeneratingBounties, toast]); // Added dependencies
 
 
   useEffect(() => {
@@ -153,10 +154,8 @@ export default function HomePage() {
     const unsubProfile = onUserProfileSnapshot(user.uid, (profileData) => {
       if (profileData) {
         setUserProfile(profileData);
-      } else if(user) { // New user, create profile
-        const initialCredits = (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS))
-                                ? INITIAL_PAL_CREDITS
-                                : 0;
+      } else if(user) {
+        const initialCredits = INITIAL_PAL_CREDITS;
         const initialProfile: UserProfile = {
           uid: user.uid,
           displayName: user.displayName || user.email?.split('@')[0] || 'Pixel Hero',
@@ -167,11 +166,11 @@ export default function HomePage() {
           palColorId: PAL_COLORS.find(c => c.id === 'default')?.id || (PAL_COLORS.length > 0 ? PAL_COLORS[0].id : 'default'),
           palPersona: DEFAULT_PERSONA_SETTINGS,
           lastBountiesGeneratedDate: '',
-          unlockedCosmetics: [] // Initialize if not present
+          unlockedCosmetics: []
         };
         createUserProfileInDB(user.uid, initialProfile).then(() => {
           setUserProfile(initialProfile);
-          showPixelPalMessage(`Welcome to Pixel Due, ${initialProfile.displayName}! Your legend begins... with ${initialCredits} Pal Credits!`, 'greeting');
+          // showPixelPalMessage(`Welcome to Pixel Due, ${initialProfile.displayName}! Your legend begins... with ${initialCredits} Pal Credits!`, 'greeting');
         }).catch(err => {
           console.error("Failed to create profile in DB:", err);
           showPixelPalMessage("Hmm, couldn't save your new profile to the cloud. We'll try again later. Don't worry, your legend begins now!", 'info');
@@ -190,7 +189,7 @@ export default function HomePage() {
         ...task,
         isStarted: task.isStarted ?? false,
         startTime: task.startTime,
-        timerId: undefined, // Timers are client-side only, not stored in DB
+        timerId: undefined,
         xp: task.isBounty ? BOUNTY_XP_REWARD : (task.xp ?? 10),
         bountyPalCredits: task.isBounty ? BOUNTY_CREDITS_REWARD : undefined,
       }));
@@ -210,7 +209,7 @@ export default function HomePage() {
         if (task.timerId) clearTimeout(task.timerId as unknown as NodeJS.Timeout);
       });
     };
-  }, [user?.uid, toast]);
+  }, [user?.uid, toast]); // Removed tasks from dependencies as it causes re-subscriptions
 
   useEffect(() => {
     if (user?.uid && userProfile && !isLoadingProfile && !isGeneratingBounties) {
@@ -219,7 +218,8 @@ export default function HomePage() {
         handleGenerateDailyBounties();
       }
     }
-  }, [user?.uid, userProfile, isLoadingProfile, isGeneratingBounties, handleGenerateDailyBounties]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, userProfile, isLoadingProfile, isGeneratingBounties]); // handleGenerateDailyBounties removed to prevent loop
 
   const handleAddTask = async (newTaskData: AddTaskFormValues) => {
     if (!user?.uid) return;
@@ -288,7 +288,6 @@ export default function HomePage() {
     const completedTaskXp = originalTask.xp ?? 10;
     const completedBountyCredits = originalTask.isBounty ? (originalTask.bountyPalCredits ?? BOUNTY_CREDITS_REWARD) : 0;
 
-
     if (originalTask.timerId && isCompletedParam) {
       clearTimeout(originalTask.timerId as unknown as NodeJS.Timeout);
     }
@@ -304,12 +303,7 @@ export default function HomePage() {
     let leveledUp = false;
     let newLevelForMessage = userProfile.level;
 
-    let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits))
-                             ? userProfile.palCredits
-                             : (typeof INITIAL_PAL_CREDITS === 'number' && !isNaN(INITIAL_PAL_CREDITS))
-                               ? INITIAL_PAL_CREDITS
-                               : 0;
-
+    let currentPalCredits = userProfile.palCredits;
 
     let creditsGainedOnLevelUp = 0;
     let bonusCreditsEarned = 0;
@@ -435,7 +429,7 @@ export default function HomePage() {
         showPixelPalMessage(`XP for "${updatedTaskData.title}" recalibrated to ${xpResult.xp} XP! All official.`, 'info');
       }
 
-      const { timerId, ...taskToSave } = finalTask; // timerId is client-side only
+      const { timerId, ...taskToSave } = finalTask;
       const success = await updateTaskInDB(user.uid, taskToSave.id, taskToSave);
       if (success) {
         showPixelPalMessage(`Quest "${finalTask.title}" updated in the cloud. Looking sharp!`, 'info');
@@ -522,7 +516,7 @@ export default function HomePage() {
       showPixelPalMessage("My circuits are offline! Can't access your profile to use credits.", 'info');
       return;
     }
-    const currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits)) ? userProfile.palCredits : 0;
+    const currentPalCredits = userProfile.palCredits;
     if (currentPalCredits < ASK_PAL_COST) {
       showPixelPalMessage(`Whoops! You need ${ASK_PAL_COST} Pal Credit(s) to ask me something. Level up or complete bounties!`, 'info');
       toast({ title: "Not Enough Pal Credits!", description: `Complete more quests or level up to earn credits. Cost: ${ASK_PAL_COST}`, className: "font-pixel pixel-corners" });
@@ -534,22 +528,17 @@ export default function HomePage() {
   const handleAskPalQuery = async (userQuery: string): Promise<string | null> => {
     if (!user?.uid || !userProfile) {
       showPixelPalMessage("My circuits are offline! Can't access your profile to use credits.", 'info');
-      // No setIsAskPalModalOpen(false) here, modal controls its own processing state.
       return "My circuits are offline! Can't access your profile.";
     }
-    let currentPalCredits = (typeof userProfile.palCredits === 'number' && !isNaN(userProfile.palCredits))
-                            ? userProfile.palCredits
-                            : 0;
+    let currentPalCredits = userProfile.palCredits;
     if (currentPalCredits < ASK_PAL_COST) {
       const noCreditsMsg = `Not enough credits! You need ${ASK_PAL_COST}, but only have ${currentPalCredits}. Time to quest!`;
       showPixelPalMessage(noCreditsMsg, 'info');
       toast({ title: "Not Enough Pal Credits!", description: `Cost: ${ASK_PAL_COST}, You have: ${currentPalCredits}`, className: "font-pixel pixel-corners" });
-      // No setIsAskPalModalOpen(false) here
-      return noCreditsMsg; // Return the message to be displayed in chat
+      return noCreditsMsg;
     }
 
-    // setIsLoadingAskPal(true); // Modal handles its own processing state via prop
-    showPixelPalMessage(`You asked: "${userQuery}"... Hmm, let me ponder that for a nanosecond!`, 'info');
+    // showPixelPalMessage(`You asked: "${userQuery}"... Hmm, let me ponder that for a nanosecond!`, 'info'); // This message will now be handled inside the modal
 
     const newCredits = Math.max(0, currentPalCredits - ASK_PAL_COST);
     const creditUpdateSuccess = await updateUserProfileData(user.uid, { palCredits: newCredits });
@@ -558,7 +547,6 @@ export default function HomePage() {
       const creditErrorMsg = "Hmm, my circuits hiccuped trying to use your credit. Try again in a bit?";
       showPixelPalMessage(creditErrorMsg, 'info');
       toast({ title: "Credit Error", description: "Could not use Pal Credit. Please try again.", variant: "destructive", className: "font-pixel pixel-corners" });
-      // setIsLoadingAskPal(false);
       return creditErrorMsg;
     }
 
@@ -572,7 +560,7 @@ export default function HomePage() {
       };
       const result: PalSarcasticCommentOutput = await getPalSarcasticCommentFlow(aiInput);
       if (result.comment) {
-        showPixelPalMessage(result.comment, 'askPalResponse'); // Log Pal's main response
+        showPixelPalMessage(result.comment, 'askPalResponse'); // Log Pal's main response to the main log
         return result.comment; // Return for modal display
       } else {
         const noCommentMsg = "My joke generator seems to be on vacation. Ask me later!";
@@ -590,9 +578,6 @@ export default function HomePage() {
         className: "font-pixel pixel-corners",
       });
       return aiErrorMsg;
-    } finally {
-      // setIsLoadingAskPal(false); // Modal controls its processing state
-      // setIsAskPalModalOpen(false); // Modal closes itself or by user action
     }
   };
 
@@ -662,7 +647,7 @@ export default function HomePage() {
     handleToggleComplete(taskId, true);
   };
 
- const checkDueTasksAndRemind = async () => {
+ const checkDueTasksAndRemind = useCallback(async () => {
     if (!user?.uid || !userProfile || isLoadingProfile || isLoadingTasks || isGeneratingStatusComment) {
       return;
     }
@@ -698,7 +683,8 @@ export default function HomePage() {
     } finally {
       setIsGeneratingStatusComment(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, userProfile, isLoadingProfile, isLoadingTasks, isGeneratingStatusComment, tasks]); // Added tasks
 
 
   useEffect(() => {
@@ -712,8 +698,8 @@ export default function HomePage() {
 
       return () => clearTimeout(initialTimer);
     }
-  }, [user?.uid, isLoadingProfile, isLoadingTasks, initialAiWelcomeFired, checkDueTasksAndRemind, isGeneratingStatusComment]);
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, isLoadingProfile, isLoadingTasks, initialAiWelcomeFired, isGeneratingStatusComment]); // checkDueTasksAndRemind removed
 
   const savedCheckDueTasksAndRemindRef = useRef(checkDueTasksAndRemind);
   useEffect(() => {
@@ -744,7 +730,7 @@ export default function HomePage() {
   if (!user) {
     return (
       <div className="container mx-auto p-4 space-y-6 md:space-y-8 max-w-5xl flex flex-col items-center justify-center min-h-screen">
-        <Loader2 size={64} className="text-primary mb-4" />
+        <Loader2 size={64} className="text-primary mb-4" /> {/* Keep loader for consistency */}
         <p className="font-pixel text-xl text-foreground">Redirecting to login...</p>
       </div>
     );
@@ -770,6 +756,7 @@ export default function HomePage() {
   const handleLogout = async () => {
     showPixelPalMessage("Catch ya later, hero! Don't forget to come back and crush more quests!", 'info');
     await logout();
+    router.push('/login'); // Ensure redirection after logout
   };
 
   return (
@@ -895,11 +882,11 @@ export default function HomePage() {
           {userProfile && <PalSettingsPanel userProfile={userProfile} onUpdatePalSettings={handleUpdatePalSettings} />}
           <Button
             onClick={openAskPalModalHandler}
-            disabled={!userProfile || (typeof userProfile.palCredits === 'number' ? userProfile.palCredits : 0) < ASK_PAL_COST || isLoadingAskPal}
+            disabled={!userProfile || userProfile.palCredits < ASK_PAL_COST || isLoadingAskPal}
             className="w-full font-pixel btn-pixel flex items-center justify-center gap-2"
           >
             <MessageCircleQuestion size={18} />
-            Ask your Pal (Cost: {ASK_PAL_COST} - You have: {(userProfile && typeof userProfile.palCredits === 'number') ? userProfile.palCredits : 0})
+            Ask your Pal (Cost: {ASK_PAL_COST} - You have: {userProfile?.palCredits ?? 0})
           </Button>
         </aside>
       </main>
