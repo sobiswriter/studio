@@ -12,11 +12,11 @@ import { cn } from '@/lib/utils';
 import { TYPING_SPEED_MS } from '@/lib/constants';
 
 interface ChatMessage {
-  id: string; // Added for unique key prop
+  id: string;
   sender: 'user' | 'pal';
   text: string;
   isTyping?: boolean;
-  fullText?: string; // To store the complete response for typing
+  fullText?: string;
 }
 
 interface AskPalModalProps {
@@ -27,6 +27,8 @@ interface AskPalModalProps {
   setIsProcessingQuery: (isProcessing: boolean) => void;
 }
 
+const ASK_PAL_COST_DISPLAY = 1; // Assuming cost is 1 for display purposes in the modal
+
 export function AskPalModal({
   isOpen,
   onClose,
@@ -36,8 +38,7 @@ export function AskPalModal({
 }: AskPalModalProps) {
   const [inputValue, setInputValue] = useState('');
   const [conversation, setConversation] = useState<ChatMessage[]>([]);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // For auto-scrolling
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,98 +53,108 @@ export function AskPalModal({
     }
   }, [isOpen]);
 
-  // Typing effect for Pal's messages
   useEffect(() => {
-    const palMessagesToType = conversation.filter(
-      (msg) => msg.sender === 'pal' && msg.isTyping && msg.text !== msg.fullText
+    const messageToType = conversation.find(
+      (msg) => msg.sender === 'pal' && msg.isTyping && msg.fullText && msg.text !== msg.fullText
     );
 
-    palMessagesToType.forEach((typingMsg) => {
-      if (!typingMsg.fullText) return;
+    if (!messageToType || !messageToType.fullText) {
+      return;
+    }
 
-      let currentText = typingMsg.text;
-      let currentIndex = currentText.length;
+    if (TYPING_SPEED_MS <= 0) {
+      setConversation((prevConv) =>
+        prevConv.map((msg) =>
+          msg.id === messageToType.id ? { ...msg, text: msg.fullText!, isTyping: false } : msg
+        )
+      );
+      return;
+    }
 
-      const intervalId = setInterval(() => {
-        if (currentIndex < typingMsg.fullText!.length) {
-          currentText += typingMsg.fullText![currentIndex];
-          setConversation((prevConv) =>
-            prevConv.map((msg) =>
-              msg.id === typingMsg.id ? { ...msg, text: currentText } : msg
-            )
-          );
-          currentIndex++;
-        } else {
-          clearInterval(intervalId);
-          setConversation((prevConv) =>
-            prevConv.map((msg) =>
-              msg.id === typingMsg.id ? { ...msg, isTyping: false } : msg
-            )
-          );
-        }
-      }, TYPING_SPEED_MS > 0 ? TYPING_SPEED_MS : 20); // Ensure TYPING_SPEED_MS is positive
+    let currentTextLength = messageToType.text.length;
+    const intervalId = setInterval(() => {
+      if (currentTextLength < messageToType.fullText!.length) {
+        currentTextLength++;
+        setConversation((prevConv) =>
+          prevConv.map((msg) =>
+            msg.id === messageToType.id
+              ? { ...msg, text: msg.fullText!.substring(0, currentTextLength) }
+              : msg
+          )
+        );
+      } else {
+        clearInterval(intervalId);
+        setConversation((prevConv) =>
+          prevConv.map((msg) =>
+            msg.id === messageToType.id ? { ...msg, isTyping: false } : msg
+          )
+        );
+      }
+    }, TYPING_SPEED_MS);
 
-      return () => clearInterval(intervalId); // Cleanup interval on effect re-run or unmount
-    });
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [conversation]);
-
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isProcessingQuery) return;
 
     const userMessageText = inputValue.trim();
+    const userMessageId = `user-${Date.now()}-${Math.random()}`;
     const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: userMessageId,
       sender: 'user',
       text: userMessageText,
     };
     setConversation(prev => [...prev, userMessage]);
+    const currentQuery = inputValue;
     setInputValue('');
     setIsProcessingQuery(true);
 
-    // Add a temporary "Pal is thinking..." message
     const thinkingMessageId = `pal-thinking-${Date.now()}`;
     const thinkingMessage: ChatMessage = {
-        id: thinkingMessageId,
-        sender: 'pal',
-        text: '...',
-        isTyping: true, // Indicate it's a placeholder for typing
-        fullText: "Thinking..." // This won't be typed out, just a placeholder
+      id: thinkingMessageId,
+      sender: 'pal',
+      text: '...',
+      isTyping: true,
+      fullText: "Thinking..."
     };
     setConversation(prev => [...prev, thinkingMessage]);
 
     try {
-      const palResponseText = await onAskQuery(userMessageText);
-
-      // Remove "thinking..." message and add actual response for typing
+      const palResponseText = await onAskQuery(currentQuery);
       setConversation(prev => prev.filter(msg => msg.id !== thinkingMessageId));
 
       if (palResponseText) {
+        const palMessageId = `pal-response-${Date.now()}-${Math.random()}`;
         const palMessage: ChatMessage = {
-          id: `pal-response-${Date.now()}`,
+          id: palMessageId,
           sender: 'pal',
-          text: '', // Start with empty text for typing
+          text: '',
           isTyping: true,
           fullText: palResponseText,
         };
         setConversation(prev => [...prev, palMessage]);
       } else {
+        const palErrorMessageId = `pal-error-${Date.now()}-${Math.random()}`;
         const palErrorMessage: ChatMessage = {
-            id: `pal-error-${Date.now()}`,
-            sender: 'pal',
-            text: "Hmm, my circuits are a bit fuzzy. Couldn't quite get that. Try again?",
+          id: palErrorMessageId,
+          sender: 'pal',
+          text: "Hmm, my circuits are a bit fuzzy. Couldn't quite get that. Try again?",
         };
         setConversation(prev => [...prev, palErrorMessage]);
       }
     } catch (error) {
-        console.error("Error during Pal query in modal:", error);
-        setConversation(prev => prev.filter(msg => msg.id !== thinkingMessageId)); // Ensure thinking is removed
-        const palErrorMessage: ChatMessage = {
-            id: `pal-error-catch-${Date.now()}`,
-            sender: 'pal',
-            text: "Whoops! A cosmic ray hit my brain. Maybe ask something else?",
-        };
-        setConversation(prev => [...prev, palErrorMessage]);
+      console.error("Error during Pal query in modal:", error);
+      setConversation(prev => prev.filter(msg => msg.id !== thinkingMessageId));
+      const palErrorCatchMessageId = `pal-error-catch-${Date.now()}-${Math.random()}`;
+      const palErrorCatchMessage: ChatMessage = {
+        id: palErrorCatchMessageId,
+        sender: 'pal',
+        text: "Whoops! A cosmic ray hit my brain. Maybe ask something else?",
+      };
+      setConversation(prev => [...prev, palErrorCatchMessage]);
     } finally {
       setIsProcessingQuery(false);
     }
@@ -151,7 +162,6 @@ export function AskPalModal({
 
   const handleDialogClose = () => {
     if (!isProcessingQuery) {
-      // conversation is cleared by useEffect on isOpen change
       onClose();
     }
   };
@@ -163,7 +173,7 @@ export function AskPalModal({
           <DialogTitle className="font-pixel text-center text-primary">Chat with Pixel Pal</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea ref={scrollAreaRef} className="flex-grow p-1 mb-2 border border-border rounded-md pixel-corners bg-background overflow-y-auto">
+        <ScrollArea className="flex-grow p-1 mb-2 border border-border rounded-md pixel-corners bg-background overflow-y-auto">
           <div className="space-y-3 p-3">
             {conversation.map((msg) => (
               <div
@@ -176,24 +186,24 @@ export function AskPalModal({
                 )}
               >
                 <p className={cn(
-                    "text-xs font-bold mb-1",
-                     msg.sender === 'user' ? 'text-primary text-right' : 'text-secondary-foreground text-left'
+                  "text-xs font-bold mb-1",
+                  msg.sender === 'user' ? 'text-primary text-right' : 'text-secondary-foreground text-left'
                 )}>
-                    {msg.sender === 'user' ? 'You' : 'Pixel Pal'}
+                  {msg.sender === 'user' ? 'You' : 'Pixel Pal'}
                 </p>
                 <p className={cn("text-foreground", msg.sender === 'user' ? 'text-right' : 'text-left')}>
                   {msg.text}
-                  {msg.sender === 'pal' && msg.isTyping && msg.text !== "Thinking..." && <span className="animate-pulse">...</span>}
+                  {msg.sender === 'pal' && msg.isTyping && msg.text !== "Thinking..." && <span className="inline-block w-1 h-3 bg-foreground animate-pulse ml-0.5" />}
                 </p>
               </div>
             ))}
-             {conversation.length === 0 && (
-                <div className="text-center text-muted-foreground py-10 h-full flex flex-col justify-center items-center">
-                    <p>Ask Pixel Pal anything!</p>
-                    <p className="text-xs">(Each question costs 1 Pal Credit)</p>
-                </div>
-             )}
-             <div ref={messagesEndRef} />
+            {conversation.length === 0 && (
+              <div className="text-center text-muted-foreground py-10 h-full flex flex-col justify-center items-center">
+                <p>Ask Pixel Pal anything!</p>
+                <p className="text-xs">(Each question costs {ASK_PAL_COST_DISPLAY} Pal Credit)</p>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
 
